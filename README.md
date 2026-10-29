@@ -1,121 +1,213 @@
-# Visor DOCX en Rust (Android + escritorio)
+# Visor DOCX
 
-Visor de documentos **escrito 100 % en Rust**: sin Java ni Kotlin. La app es una
-`NativeActivity` de Android que carga una librería Rust (`libvisor_docx.so`) y dibuja
-todo con [egui](https://github.com/emilk/egui) (eframe 0.32, backend OpenGL ES).
+[![Rust](https://img.shields.io/badge/rust-stable-orange?logo=rust)](https://www.rust-lang.org)
+[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20Linux-blue)](#requirements)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Formatos:
+A lightweight, native document viewer for Android and desktop, written entirely in Rust.
 
-| Formato | Soporte |
-|---|---|
-| `.docx` `.docm` `.dotx` `.dotm` | Párrafos, negrita/cursiva/subrayado/tachado, color, tamaño, resaltado, super/subíndice, encabezados, listas con viñetas y numeración, tablas (también anidadas), imágenes (PNG/JPEG/GIF/BMP), alineación, hipervínculos (solo estilo), saltos de página |
-| `.odt` `.ott` | Lo mismo en versión básica (estilos automáticos, listas, tablas, imágenes) |
-| `.txt` `.md` | Texto plano; en `.md` solo se interpretan los encabezados `#` |
-| `.doc` (binario viejo) y `.rtf` | **No soportados** → el visor muestra un aviso para convertirlos a `.docx` |
+Visor DOCX opens Microsoft Word, OpenDocument, and plain-text files without requiring Microsoft
+Office, LibreOffice, Java, or Kotlin. The DOCX and ODT parsers are implemented from scratch on top
+of a small XML tokenizer and the `zip` crate, and the interface is rendered with
+[egui](https://github.com/emilk/egui).
 
-El parser de DOCX/ODT es propio (tokenizador XML de ~200 líneas + `zip`), así que no depende de
-crates de Word con API inestable. Dependencias: `eframe/egui`, `zip` (solo deflate), `image`
-(png/jpeg/gif/bmp), `android-activity` y `jni` (estos dos solo en Android, para la `NativeActivity`
-y el permiso de almacenamiento).
+## Why Visor DOCX?
 
-## Estado honesto
+- **No office suite required** — documents are parsed and rendered by the application itself.
+- **Native Android app** — runs as a `NativeActivity` that loads `libvisor_docx.so`; there is no
+  JVM or Kotlin UI layer.
+- **One codebase** — the same viewer runs on Android and Linux desktop.
+- **Offline and private** — documents are processed locally and are never uploaded.
+- **Read-only by design** — focused on viewing documents, with a simple file browser and zoomable
+  rendering.
 
-* El código **compila** con Rust stable en escritorio y para `aarch64-linux-android`
-  (`cargo check`), y el `.docx` de `samples/` se parsea correctamente en la prueba de humo.
-* **No está probado en un dispositivo Android real**: el empaquetado del APK, los permisos y el
-  renderizado OpenGL ES pueden necesitar ajustes en el primer arranque. Si algo falla, abre un
-  *issue* con el error de `cargo`/`adb logcat` y se corrige.
+## Supported formats
 
+| Format | Extensions | Support |
+|---|---|---|
+| Microsoft Word | `.docx` `.docm` `.dotx` `.dotm` | Paragraphs, bold/italic/underline/strikethrough, color, size, highlight, super/subscript, headings, bulleted and numbered lists, tables (including nested), images (PNG/JPEG/GIF/BMP), alignment, hyperlink styling, and page breaks |
+| OpenDocument Text | `.odt` `.ott` | Basic styles, lists, tables, and images |
+| Plain text | `.txt` `.md` | Full text; Markdown files also detect `#` headings |
+| Legacy formats | `.doc`, `.rtf` | Not supported; the viewer displays a conversion hint |
 
-## 1) Probar primero en la laptop (rápido)
+## Features
+
+- Rich text rendering with common inline formatting and colors.
+- Heading detection and paragraph alignment.
+- Bulleted and numbered lists.
+- Tables, including nested tables.
+- Embedded images with automatic scaling.
+- File browser with quick-access folders.
+- Zoom with on-screen buttons or pinch gestures.
+- Touch-friendly scrolling with virtualized rendering for large documents.
+
+## Requirements
+
+### Desktop
+
+- Rust stable, installed with [rustup](https://rustup.rs).
+- Linux build dependencies:
+
+  ```bash
+  sudo apt update
+  sudo apt install build-essential pkg-config libx11-dev libxkbcommon-dev \
+                   libwayland-dev libegl1-mesa-dev libgl1-mesa-dev
+  ```
+
+- An OpenGL-capable graphics driver (the default renderer uses `glow`).
+
+### Android
+
+- Rust stable with the `aarch64-linux-android` target.
+- JDK 17 or newer.
+- Android SDK with platform 34, build-tools 34.0.0, and platform-tools.
+- Android NDK 27.2.12479018 (or a newer NDK with the paths adjusted).
+- [`cargo-apk`](https://github.com/rust-mobile/cargo-apk) for APK packaging.
+- `adb` for installing on a device.
+- Android 11 (API 30) or newer.
+
+## Build and run
+
+### Desktop
+
+Clone the repository and run the sample document:
 
 ```bash
-sudo apt install build-essential pkg-config libx11-dev libxkbcommon-dev libwayland-dev \
-                 libegl1-mesa-dev libgl1-mesa-dev
-sudo apt install rustup && rustup default stable      # o https://rustup.rs
+git clone https://github.com/Abemilek/visor-docx-rs.git
+cd visor-docx-rs
 cargo run --release -- samples/ejemplo.docx
 ```
 
-Es la misma interfaz que en Android (explorador + visor). Si algo falla aquí, fallará en el móvil.
-
-## 2) Compilar el APK en Debian 13
-
-Herramientas necesarias (Rust para Android, JDK, SDK/NDK de Android, cargo-apk):
+You can also open a directory or another file:
 
 ```bash
-sudo apt install default-jdk-headless unzip adb
-# Rust + target Android (rust-toolchain.toml añade aarch64-linux-android solo):
-rustup default stable
-rustup target add aarch64-linux-android
+cargo run --release -- /path/to/documents
+cargo run --release -- /path/to/file.docx
 ```
 
-Android SDK y NDK: Google no los distribuye por apt. En Debian existen paquetes instaladores
-en `contrib` (p. ej. `google-android-ndk-*-installer`, `google-android-platform-34-installer`,
-`google-android-build-tools-34.0.0-installer`; busca con `apt search google-android`). Si no
-los tienes, descarga las *command line tools* de developer.android.com y ejecuta:
+With no argument, the viewer opens the home directory. To build the release binary:
+
+```bash
+cargo build --release
+./target/release/visor-docx-desktop
+```
+
+### Android
+
+Install the Rust target and packaging tool:
+
+```bash
+rustup target add aarch64-linux-android
+cargo install cargo-apk
+```
+
+Configure the Android SDK and NDK. If you use the command-line tools, install the required
+packages first:
 
 ```bash
 sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" "ndk;27.2.12479018"
-export ANDROID_HOME=$HOME/Android/Sdk
-export ANDROID_NDK_ROOT=$ANDROID_HOME/ndk/27.2.12479018
+
+export ANDROID_HOME="$HOME/Android/Sdk"
+export ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/27.2.12479018"
 ```
 
-Compilar:
+Build and install a debug APK:
 
 ```bash
-./build-android.sh            # APK de depuración firmado con la clave debug (suficiente para probar)
-adb install -r $(find target -name '*.apk' | head -1)
-# o directamente: cargo apk run --lib
+./build-android.sh
+adb install -r "$(find target -name '*.apk' | head -n 1)"
 ```
 
-Versión release (necesita tu propia firma):
+Alternatively, build and launch directly on a connected device:
 
 ```bash
-keytool -genkey -v -keystore ~/visor.keystore -alias visor -keyalg RSA -keysize 2048 -validity 10000
-export CARGO_APK_RELEASE_KEYSTORE=$HOME/visor.keystore
-export CARGO_APK_RELEASE_KEYSTORE_PASSWORD='tu-clave'
+cargo apk run --lib
+```
+
+For a signed release build, create a keystore and provide its credentials:
+
+```bash
+keytool -genkeypair -v -keystore "$HOME/visor.keystore" \
+        -alias visor -keyalg RSA -keysize 2048 -validity 10000
+
+export CARGO_APK_RELEASE_KEYSTORE="$HOME/visor.keystore"
+export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="your-password"
 ./build-android.sh release
 ```
 
-> `cargo-apk` fue marcado como deprecado en favor de `xbuild` hace tiempo, pero sigue
-> funcionando con NativeActivity y se ha vuelto a usar en proyectos de 2026. Si `cargo install
-> cargo-apk` falla, la alternativa es `xbuild` (`x build --platform android --arch arm64`).
+> `cargo-apk` is used for `NativeActivity` packaging. If it is unavailable in your environment,
+> `xbuild` can be used as an alternative (`x build --platform android --arch arm64`).
 
-## 3) Usar la app
+## Usage
 
-1. Abre **Visor DOCX**. Si falta el permiso, pulsa **Conceder acceso**: se abre la pantalla de
-   Android «Acceso a todos los archivos»; actívalo y vuelve a la app.
-2. Navega por *Descargas*, *Documentos*, etc. y toca un archivo.
-3. Zoom con los botones **− / +** o pellizcando. Scroll con el dedo.
+### Android
 
-También puedes copiar archivos con `adb push doc.docx /sdcard/Download/`.
+1. Launch **Visor DOCX**.
+2. Grant **All files access** when prompted, then return to the app.
+3. Browse the quick-access folders (for example, *Descargas* or *Documentos*), then tap a document.
+4. Use the **−** and **+** buttons or pinch to zoom, and drag to scroll.
 
-## Limitaciones conocidas
+You can copy files to the device with `adb`:
 
-* Sin edición, búsqueda ni impresión; solo visualización.
-* No se leen encabezados/pies de página, notas al pie, cuadros de texto ni gráficos/ecuaciones complejas.
-  Las imágenes flotantes se muestran en línea.
-* Tablas: columnas de igual ancho; celdas combinadas se tratan como una celda.
-* Justificado se muestra alineado a la izquierda. Interlineado y espaciado fijos.
-* Fuentes: egui incluye una fuente latina; la negrita real depende de que exista una fuente
-  `*-Bold.ttf` en el sistema (Android: `/system/fonts`). Sin ella se usa mayor contraste.
-  Alfabetos CJK/árabe/etc. no se renderizan.
-* No se abre desde «Abrir con…» de otras apps (requeriría leer `content://` vía JNI).
-* El permiso `MANAGE_EXTERNAL_STORAGE` sirve para instalar por APK; Google Play no lo acepta
-  para un visor como este (habría que usar el selector de documentos de Android, que requiere JNI
-  adicional o una capa Java).
-* Si ves pantalla negra en algún dispositivo, cambia en `Cargo.toml` la feature `glow` por `wgpu`
-  (y en `src/lib.rs` añade `renderer: eframe::Renderer::Wgpu` a `NativeOptions`).
-
-## Estructura
-
+```bash
+adb push document.docx /sdcard/Download/
 ```
-src/lib.rs      punto de entrada (android_main / run_desktop)
-src/xml.rs      tokenizador XML mínimo
-src/docx.rs     parser DOCX (estilos, numeración, tablas, imágenes)
-src/odt.rs      parser ODT
-src/text.rs     texto plano / markdown
-src/load.rs     detección de formato
-src/ui.rs       explorador + visor egui (scroll virtualizado)
-src/platform.rs JNI: permiso de almacenamiento en Android
+
+### Desktop
+
+The desktop build uses the same file browser and viewer. Pass a file or directory on the command
+line, or navigate with the built-in browser.
+
+> The in-app interface is currently in Spanish.
+
+## Project structure
+
+```text
+src/lib.rs       Entry points for Android (`android_main`) and desktop (`run_desktop`)
+src/xml.rs       Minimal XML tokenizer
+src/docx.rs      DOCX parser (styles, numbering, tables, images)
+src/odt.rs       ODT parser
+src/text.rs      Plain text and Markdown
+src/load.rs      Format detection and parser dispatch
+src/ui.rs        egui file browser and virtualized document viewer
+src/platform.rs  Android JNI helpers for storage permission
+samples/         Sample documents
+build-android.sh Android APK build script
 ```
+
+## Limitations
+
+- Read-only: there is no editing, search, or printing.
+- Headers, footers, footnotes, text boxes, complex graphics, and equations are not rendered.
+  Floating images are displayed inline.
+- Table columns have equal width, and merged cells are treated as a single cell.
+- Justified text is displayed left-aligned; line and paragraph spacing are fixed.
+- Font support is limited to Latin alphabets. Real bold text requires a system `*-Bold.ttf` font;
+  otherwise a higher-contrast fallback is used.
+- Android's "Open with" flow is not supported, since it requires reading `content://` URIs.
+- `MANAGE_EXTERNAL_STORAGE` is intended for sideloaded APKs and is not accepted by Google Play for
+  this type of viewer.
+
+## Troubleshooting
+
+- **Black screen on some devices:** switch the renderer from `glow` to `wgpu` in `Cargo.toml` and
+  add `renderer: eframe::Renderer::Wgpu` to `NativeOptions` in `src/lib.rs`.
+- **Storage permission not granted:** open Android Settings → Apps → Visor DOCX → Special access →
+  All files access, enable it, and return to the app.
+
+## Contributing
+
+Issues and pull requests are welcome. Before submitting a change, run:
+
+```bash
+cargo fmt --check
+cargo test
+cargo check --all-targets
+cargo check --target aarch64-linux-android --lib
+```
+
+Commit messages follow the [Conventional Commits](https://www.conventionalcommits.org/) format.
+
+## License
+
+Released under the MIT License. See [LICENSE](LICENSE) for details.
