@@ -35,7 +35,7 @@ mod smoke {
 
     #[test]
     fn load_sample() {
-        let d = crate::load::load(std::path::Path::new("samples/ejemplo.docx")).unwrap();
+        let d = crate::load::load(std::path::Path::new("samples/sample.docx")).unwrap();
         assert!(!d.blocks.is_empty());
         assert!(!d.images.is_empty());
         for b in &d.blocks {

@@ -122,7 +122,7 @@ src/text.rs      Plain text and Markdown
 src/load.rs      Format detection and parser dispatch
 src/ui.rs        egui file browser and virtualized document viewer
 src/platform.rs  Android JNI helpers for storage permission
-samples/         Sample documents
+samples/         Sample document used by the parser smoke test
 build-android.sh Android APK build script
 ```
 
