@@ -1,4 +1,4 @@
-# DOCX Viewer
+# Oxifolio
 
 [![Rust](https://img.shields.io/badge/rust-stable-orange?logo=rust)](https://www.rust-lang.org)
 [![Platform](https://img.shields.io/badge/platform-Android-blue)](#requirements)
