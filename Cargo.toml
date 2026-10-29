@@ -1,13 +1,13 @@
 [package]
-name = "visor-docx"
+name = "oxifolio"
 version = "0.1.0"
 edition = "2021"
-description = "A Word (.docx), OpenDocument (.odt) and plain-text viewer written entirely in Rust with egui, for Android"
+description = "A lightweight, native document viewer for Android, written entirely in Rust with egui, for Word, OpenDocument and plain-text files"
 license = "MIT"
 
 [lib]
-name = "visor_docx"
-# cdylib => libvisor_docx.so loaded by NativeActivity on Android
+name = "oxifolio"
+# cdylib => liboxifolio.so loaded by NativeActivity on Android
 # lib    => host-side parser tests
 crate-type = ["cdylib", "lib"]
 
@@ -36,8 +36,8 @@ strip = true
 
 # ---------- APK packaging with cargo-apk ----------
 [package.metadata.android]
-package = "dev.visordocx.rs"
-apk_name = "DocxViewer"
+package = "dev.oxifolio.rs"
+apk_name = "Oxifolio"
 build_targets = ["aarch64-linux-android"]
 
 [package.metadata.android.sdk]
@@ -45,7 +45,7 @@ min_sdk_version = 30
 target_sdk_version = 34
 
 [package.metadata.android.application]
-label = "DOCX Viewer"
+label = "Oxifolio"
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.MANAGE_EXTERNAL_STORAGE"

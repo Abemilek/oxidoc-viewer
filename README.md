@@ -6,14 +6,14 @@
 
 A lightweight, native document viewer for Android, written entirely in Rust.
 
-DOCX Viewer opens Microsoft Word, OpenDocument, and plain-text files without requiring Microsoft
+Oxifolio opens Microsoft Word, OpenDocument, and plain-text files without requiring Microsoft
 Office, LibreOffice, Java, or Kotlin. The DOCX and ODT parsers are implemented from scratch on top
 of a small XML tokenizer and the `zip` crate, and the interface is rendered with
 [egui](https://github.com/emilk/egui).
 
-## Why DOCX Viewer?
+## Why Oxifolio?
 
-- **Native Android app** — runs as a `NativeActivity` that loads `libvisor_docx.so`; there is no
+- **Native Android app** — runs as a `NativeActivity` that loads `liboxifolio.so`; there is no
   JVM or Kotlin UI layer.
 - **No office suite required** — documents are parsed and rendered by the application itself.
 - **Offline and private** — documents are processed locally and are never uploaded.
@@ -87,10 +87,10 @@ cargo apk run --lib
 For a signed release build, create a keystore and provide its credentials:
 
 ```bash
-keytool -genkeypair -v -keystore "$HOME/docx-viewer.keystore" \
-        -alias docxviewer -keyalg RSA -keysize 2048 -validity 10000
+keytool -genkeypair -v -keystore "$HOME/oxifolio.keystore" \
+        -alias oxifolio -keyalg RSA -keysize 2048 -validity 10000
 
-export CARGO_APK_RELEASE_KEYSTORE="$HOME/docx-viewer.keystore"
+export CARGO_APK_RELEASE_KEYSTORE="$HOME/oxifolio.keystore"
 export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="your-password"
 ./build-android.sh release
 ```
@@ -100,7 +100,7 @@ export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="your-password"
 
 ## Usage
 
-1. Launch **DOCX Viewer**.
+1. Launch **Oxifolio**.
 2. Grant **All files access** when prompted, then return to the app.
 3. Browse the quick-access folders (*Downloads*, *Documents*, or *Storage*) and tap a document.
 4. Use the **−** and **+** buttons or pinch to zoom, and drag to scroll.
@@ -143,7 +143,7 @@ build-android.sh Android APK build script
 
 - **Black screen on some devices:** switch the renderer from `glow` to `wgpu` in `Cargo.toml` and
   add `renderer: eframe::Renderer::Wgpu` to `NativeOptions` in `src/lib.rs`.
-- **Storage permission not granted:** open Android Settings → Apps → DOCX Viewer → Special access →
+- **Storage permission not granted:** open Android Settings → Apps → Oxifolio → Special access →
   All files access, enable it, and return to the app.
 
 ## Contributing

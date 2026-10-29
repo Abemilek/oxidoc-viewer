@@ -1,4 +1,4 @@
-//! Android document viewer written in Rust. No Java or Kotlin: the app is a NativeActivity + egui.
+//! Oxifolio: native document viewer for Android written in Rust. No Java or Kotlin: the app is a NativeActivity + egui.
 
 // The UI is Android-only; host builds use the parser modules for tests.
 #![cfg_attr(not(target_os = "android"), allow(dead_code))]
@@ -23,7 +23,7 @@ fn android_main(app: android_activity::AndroidApp) {
         ..Default::default()
     };
     let _ = eframe::run_native(
-        "DOCX Viewer",
+        "Oxifolio",
         options,
         Box::new(move |cc| Ok(Box::new(ui::ViewerApp::new(cc, app.clone())))),
     );

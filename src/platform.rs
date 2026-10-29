@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 pub type AppHandle = android_activity::AndroidApp;
 
-const PACKAGE: &str = "dev.visordocx.rs";
+const PACKAGE: &str = "dev.oxifolio.rs";
 
 pub fn quick_dirs(h: &AppHandle) -> Vec<(String, PathBuf)> {
     let mut v = vec![
