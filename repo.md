@@ -1,1 +1,0 @@
-git@github.com:Abemilek/visor-docx-rs.git
