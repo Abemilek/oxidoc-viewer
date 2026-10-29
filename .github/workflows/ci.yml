@@ -35,11 +35,6 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Set up Android NDK
-        uses: android-actions/setup-ndk@v3
-        with:
-          ndk-version: 27.2.12479018
-
       - name: Check formatting
         run: cargo fmt --check
 
