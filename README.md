@@ -1,25 +1,25 @@
-# Visor DOCX
+# DOCX Viewer
 
 [![Rust](https://img.shields.io/badge/rust-stable-orange?logo=rust)](https://www.rust-lang.org)
-[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20Linux-blue)](#requirements)
+[![Platform](https://img.shields.io/badge/platform-Android-blue)](#requirements)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-A lightweight, native document viewer for Android and desktop, written entirely in Rust.
+A lightweight, native document viewer for Android, written entirely in Rust.
 
-Visor DOCX opens Microsoft Word, OpenDocument, and plain-text files without requiring Microsoft
+DOCX Viewer opens Microsoft Word, OpenDocument, and plain-text files without requiring Microsoft
 Office, LibreOffice, Java, or Kotlin. The DOCX and ODT parsers are implemented from scratch on top
 of a small XML tokenizer and the `zip` crate, and the interface is rendered with
 [egui](https://github.com/emilk/egui).
 
-## Why Visor DOCX?
+## Why DOCX Viewer?
 
-- **No office suite required** — documents are parsed and rendered by the application itself.
 - **Native Android app** — runs as a `NativeActivity` that loads `libvisor_docx.so`; there is no
   JVM or Kotlin UI layer.
-- **One codebase** — the same viewer runs on Android and Linux desktop.
+- **No office suite required** — documents are parsed and rendered by the application itself.
 - **Offline and private** — documents are processed locally and are never uploaded.
 - **Read-only by design** — focused on viewing documents, with a simple file browser and zoomable
   rendering.
+- **Touch-first interface** — pinch-to-zoom, drag-to-scroll, and large tap targets.
 
 ## Supported formats
 
@@ -43,22 +43,8 @@ of a small XML tokenizer and the `zip` crate, and the interface is rendered with
 
 ## Requirements
 
-### Desktop
-
-- Rust stable, installed with [rustup](https://rustup.rs).
-- Linux build dependencies:
-
-  ```bash
-  sudo apt update
-  sudo apt install build-essential pkg-config libx11-dev libxkbcommon-dev \
-                   libwayland-dev libegl1-mesa-dev libgl1-mesa-dev
-  ```
-
-- An OpenGL-capable graphics driver (the default renderer uses `glow`).
-
-### Android
-
-- Rust stable with the `aarch64-linux-android` target.
+- Rust stable, installed with [rustup](https://rustup.rs), plus the
+  `aarch64-linux-android` target.
 - JDK 17 or newer.
 - Android SDK with platform 34, build-tools 34.0.0, and platform-tools.
 - Android NDK 27.2.12479018 (or a newer NDK with the paths adjusted).
@@ -67,32 +53,6 @@ of a small XML tokenizer and the `zip` crate, and the interface is rendered with
 - Android 11 (API 30) or newer.
 
 ## Build and run
-
-### Desktop
-
-Clone the repository and run the sample document:
-
-```bash
-git clone https://github.com/Abemilek/visor-docx-rs.git
-cd visor-docx-rs
-cargo run --release -- samples/ejemplo.docx
-```
-
-You can also open a directory or another file:
-
-```bash
-cargo run --release -- /path/to/documents
-cargo run --release -- /path/to/file.docx
-```
-
-With no argument, the viewer opens the home directory. To build the release binary:
-
-```bash
-cargo build --release
-./target/release/visor-docx-desktop
-```
-
-### Android
 
 Install the Rust target and packaging tool:
 
@@ -127,10 +87,10 @@ cargo apk run --lib
 For a signed release build, create a keystore and provide its credentials:
 
 ```bash
-keytool -genkeypair -v -keystore "$HOME/visor.keystore" \
-        -alias visor -keyalg RSA -keysize 2048 -validity 10000
+keytool -genkeypair -v -keystore "$HOME/docx-viewer.keystore" \
+        -alias docxviewer -keyalg RSA -keysize 2048 -validity 10000
 
-export CARGO_APK_RELEASE_KEYSTORE="$HOME/visor.keystore"
+export CARGO_APK_RELEASE_KEYSTORE="$HOME/docx-viewer.keystore"
 export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="your-password"
 ./build-android.sh release
 ```
@@ -140,11 +100,9 @@ export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="your-password"
 
 ## Usage
 
-### Android
-
-1. Launch **Visor DOCX**.
+1. Launch **DOCX Viewer**.
 2. Grant **All files access** when prompted, then return to the app.
-3. Browse the quick-access folders (for example, *Descargas* or *Documentos*), then tap a document.
+3. Browse the quick-access folders (*Downloads*, *Documents*, or *Storage*) and tap a document.
 4. Use the **−** and **+** buttons or pinch to zoom, and drag to scroll.
 
 You can copy files to the device with `adb`:
@@ -153,17 +111,10 @@ You can copy files to the device with `adb`:
 adb push document.docx /sdcard/Download/
 ```
 
-### Desktop
-
-The desktop build uses the same file browser and viewer. Pass a file or directory on the command
-line, or navigate with the built-in browser.
-
-> The in-app interface is currently in Spanish.
-
 ## Project structure
 
 ```text
-src/lib.rs       Entry points for Android (`android_main`) and desktop (`run_desktop`)
+src/lib.rs       Android entry point (`android_main`) and module wiring
 src/xml.rs       Minimal XML tokenizer
 src/docx.rs      DOCX parser (styles, numbering, tables, images)
 src/odt.rs       ODT parser
@@ -192,7 +143,7 @@ build-android.sh Android APK build script
 
 - **Black screen on some devices:** switch the renderer from `glow` to `wgpu` in `Cargo.toml` and
   add `renderer: eframe::Renderer::Wgpu` to `NativeOptions` in `src/lib.rs`.
-- **Storage permission not granted:** open Android Settings → Apps → Visor DOCX → Special access →
+- **Storage permission not granted:** open Android Settings → Apps → DOCX Viewer → Special access →
   All files access, enable it, and return to the app.
 
 ## Contributing
@@ -202,9 +153,10 @@ Issues and pull requests are welcome. Before submitting a change, run:
 ```bash
 cargo fmt --check
 cargo test
-cargo check --all-targets
 cargo check --target aarch64-linux-android --lib
 ```
+
+`cargo test` runs the parser smoke test on the host; the UI and JNI layers are compiled for Android.
 
 Commit messages follow the [Conventional Commits](https://www.conventionalcommits.org/) format.
 
