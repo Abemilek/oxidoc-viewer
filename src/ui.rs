@@ -261,7 +261,7 @@ impl ViewerApp {
                 }
                 ui.label(format!("{}%", (zoom_now * 100.0).round() as i32));
             });
-            ui.label(egui::RichText::new(name).small());
+            ui.label(egui::RichText::new(&name).small());
             ui.add_space(4.0);
         });
 
@@ -283,7 +283,7 @@ impl ViewerApp {
                     *layout_key = key;
                 }
                 let rc = RCtx { images: &doc.images, textures: &*textures, scale: zoom * PT_SCALE, has_bold };
-                egui::ScrollArea::vertical().auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
+                egui::ScrollArea::vertical().id_salt(("visor", name.as_str())).auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
                     ui.spacing_mut().item_spacing.y = (6.0 * zoom).clamp(3.0, 18.0);
                     let sp = ui.spacing().item_spacing.y;
                     let avail = ui.available_width();
