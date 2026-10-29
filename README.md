@@ -87,13 +87,20 @@ cargo apk run --lib
 For a signed release build, create a keystore and provide its credentials:
 
 ```bash
-keytool -genkeypair -v -keystore "$HOME/oxifolio.keystore" \
+keytool -genkeypair -v -keystore "$HOME/oxifolio-release.keystore" \
         -alias oxifolio -keyalg RSA -keysize 2048 -validity 10000
 
-export CARGO_APK_RELEASE_KEYSTORE="$HOME/oxifolio.keystore"
-export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="your-password"
+export CARGO_APK_RELEASE_KEYSTORE="$HOME/oxifolio-release.keystore"
+export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="oxifolio"
 ./build-android.sh release
 ```
+
+This produces signed APKs in `target/release/apk/` (for example `Oxifolio.apk`).
+
+The release APKs for the current setup are kept in the `apks/` folder of the repository:
+
+- `apks/Oxifolio-arm64-release.apk` — for new phones (`arm64-v8a`).
+- `apks/Oxifolio-armeabi-v7a-release.apk` — for old phones (`armeabi-v7a`).
 
 > `cargo-apk` is used for `NativeActivity` packaging. If it is unavailable in your environment,
 > `xbuild` can be used as an alternative (`x build --platform android --arch arm64`).
