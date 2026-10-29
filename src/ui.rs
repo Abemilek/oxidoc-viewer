@@ -1,17 +1,17 @@
-//! Interfaz (egui): explorador de archivos + visor de documentos con scroll virtualizado.
+//! UI (egui): file browser and document viewer with virtualized scrolling.
 use crate::doc::*;
 use crate::load;
 use crate::platform::{self, AppHandle};
 use eframe::egui::{
-    self, text::LayoutJob, vec2, Align, Color32, FontFamily, FontId, Stroke, TextFormat, TextureHandle,
-    TextureOptions,
+    self, text::LayoutJob, vec2, Align, Color32, FontFamily, FontId, Stroke, TextFormat,
+    TextureHandle, TextureOptions,
 };
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 const TEXT: Color32 = Color32::from_rgb(25, 25, 25);
-/// puntos tipográficos del documento -> puntos lógicos de egui
+/// Document typographic points -> egui logical points.
 const PT_SCALE: f32 = 1.25;
 
 struct Entry {
@@ -42,7 +42,7 @@ pub struct ViewerApp {
     next_check: f64,
 }
 
-/// Busca una fuente "negrita" del sistema (Android: /system/fonts, Linux: DejaVu/Liberation/Noto).
+/// Looks for a system bold font (Android: /system/fonts; Linux: DejaVu/Liberation/Noto).
 fn setup_fonts(ctx: &egui::Context) -> bool {
     let candidates = [
         "/system/fonts/NotoSerif-Bold.ttf",
@@ -59,7 +59,13 @@ fn setup_fonts(ctx: &egui::Context) -> bool {
                 .font_data
                 .insert("bold".to_owned(), egui::FontData::from_owned(bytes).into());
             let mut list = vec!["bold".to_owned()];
-            list.extend(fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default());
+            list.extend(
+                fonts
+                    .families
+                    .get(&FontFamily::Proportional)
+                    .cloned()
+                    .unwrap_or_default(),
+            );
             fonts.families.insert(FontFamily::Name("bold".into()), list);
             ctx.set_fonts(fonts);
             return true;
@@ -69,17 +75,24 @@ fn setup_fonts(ctx: &egui::Context) -> bool {
 }
 
 impl ViewerApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, handle: AppHandle, start: Option<PathBuf>) -> Self {
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        handle: AppHandle,
+        start: Option<PathBuf>,
+    ) -> Self {
         let ctx = &cc.egui_ctx;
         ctx.set_visuals(egui::Visuals::light());
         ctx.style_mut(|s| {
             s.spacing.button_padding = vec2(12.0, 10.0);
             s.spacing.item_spacing = vec2(8.0, 8.0);
-            s.interaction.selectable_labels = false; // para que arrastrar = scroll en pantallas táctiles
+            s.interaction.selectable_labels = false; // so dragging scrolls on touch screens
         });
         let has_bold = setup_fonts(ctx);
         let quick = platform::quick_dirs(&handle);
-        let dir = quick.first().map(|q| q.1.clone()).unwrap_or_else(|| PathBuf::from("/"));
+        let dir = quick
+            .first()
+            .map(|q| q.1.clone())
+            .unwrap_or_else(|| PathBuf::from("/"));
         let access_ok = platform::has_access(&handle);
         let mut app = ViewerApp {
             handle,
@@ -121,7 +134,9 @@ impl ViewerApp {
                         continue;
                     }
                     let path = e.path();
-                    let is_dir = std::fs::metadata(&path).map(|m| m.is_dir()).unwrap_or(false);
+                    let is_dir = std::fs::metadata(&path)
+                        .map(|m| m.is_dir())
+                        .unwrap_or(false);
                     if !is_dir && !load::is_supported_name(&name) {
                         continue;
                     }
@@ -143,7 +158,11 @@ impl ViewerApp {
         match load::load(path) {
             Ok(doc) => {
                 let n = doc.blocks.len();
-                let name = if doc.title.is_empty() { path.display().to_string() } else { doc.title.clone() };
+                let name = if doc.title.is_empty() {
+                    path.display().to_string()
+                } else {
+                    doc.title.clone()
+                };
                 self.open = Some(Open {
                     doc,
                     name,
@@ -200,23 +219,26 @@ impl ViewerApp {
             if let Some(e) = &self.dir_error {
                 ui.label(e.as_str());
             }
-            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-                for e in &self.entries {
-                    let icon = if e.is_dir { "📁" } else { "📄" };
-                    let w = ui.available_width();
-                    let b = egui::Button::new(format!("{icon}  {}", e.name)).min_size(vec2(w, 44.0));
-                    if ui.add(b).clicked() {
-                        if e.is_dir {
-                            nav = Some(e.path.clone());
-                        } else {
-                            open = Some(e.path.clone());
+            egui::ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    for e in &self.entries {
+                        let icon = if e.is_dir { "📁" } else { "📄" };
+                        let w = ui.available_width();
+                        let b = egui::Button::new(format!("{icon}  {}", e.name))
+                            .min_size(vec2(w, 44.0));
+                        if ui.add(b).clicked() {
+                            if e.is_dir {
+                                nav = Some(e.path.clone());
+                            } else {
+                                open = Some(e.path.clone());
+                            }
                         }
                     }
-                }
-                if self.entries.is_empty() && self.dir_error.is_none() {
-                    ui.label("(carpeta vacía o sin documentos compatibles)");
-                }
-            });
+                    if self.entries.is_empty() && self.dir_error.is_none() {
+                        ui.label("(carpeta vacía o sin documentos compatibles)");
+                    }
+                });
         });
 
         if ask {
@@ -244,7 +266,11 @@ impl ViewerApp {
     fn viewer_ui(&mut self, ctx: &egui::Context) {
         let mut close = false;
         let mut dz = ctx.input(|i| i.zoom_delta());
-        let name = self.open.as_ref().map(|o| o.name.clone()).unwrap_or_default();
+        let name = self
+            .open
+            .as_ref()
+            .map(|o| o.name.clone())
+            .unwrap_or_default();
         let zoom_now = self.zoom;
 
         egui::TopBottomPanel::top("bar").show(ctx, |ui| {
@@ -271,10 +297,18 @@ impl ViewerApp {
         let zoom = self.zoom;
         let has_bold = self.has_bold;
 
-        let frame = egui::Frame::default().fill(Color32::WHITE).inner_margin(10.0);
+        let frame = egui::Frame::default()
+            .fill(Color32::WHITE)
+            .inner_margin(10.0);
         egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
             if let Some(o) = &mut self.open {
-                let Open { doc, textures, heights, layout_key, .. } = o;
+                let Open {
+                    doc,
+                    textures,
+                    heights,
+                    layout_key,
+                    ..
+                } = o;
                 let w = ui.available_width();
                 let key = (w as i32, (zoom * 100.0) as i32);
                 if *layout_key != key || heights.len() != doc.blocks.len() {
@@ -282,30 +316,42 @@ impl ViewerApp {
                     heights.resize(doc.blocks.len(), 0.0);
                     *layout_key = key;
                 }
-                let rc = RCtx { images: &doc.images, textures: &*textures, scale: zoom * PT_SCALE, has_bold };
-                egui::ScrollArea::vertical().id_salt(("visor", name.as_str())).auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
-                    ui.spacing_mut().item_spacing.y = (6.0 * zoom).clamp(3.0, 18.0);
-                    let sp = ui.spacing().item_spacing.y;
-                    let avail = ui.available_width();
-                    let top = viewport.min.y - 800.0;
-                    let bot = viewport.max.y + 800.0;
-                    let mut y = 0.0f32;
-                    for (i, b) in doc.blocks.iter().enumerate() {
-                        let h = heights[i];
-                        let known = h > 0.0;
-                        let render = if known { y + h >= top && y <= bot } else { y <= bot };
-                        if render {
-                            let r = ui.scope(|ui| render_block(ui, b, &rc));
-                            let hh = r.response.rect.height().max(0.5);
-                            heights[i] = hh;
-                            y += hh + sp;
-                        } else {
-                            let hh = if known { h } else { estimate(b, &rc) };
-                            ui.allocate_space(vec2(avail, hh));
-                            y += hh + sp;
+                let rc = RCtx {
+                    images: &doc.images,
+                    textures: &*textures,
+                    scale: zoom * PT_SCALE,
+                    has_bold,
+                };
+                egui::ScrollArea::vertical()
+                    .id_salt(("visor", name.as_str()))
+                    .auto_shrink([false, false])
+                    .show_viewport(ui, |ui, viewport| {
+                        ui.spacing_mut().item_spacing.y = (6.0 * zoom).clamp(3.0, 18.0);
+                        let sp = ui.spacing().item_spacing.y;
+                        let avail = ui.available_width();
+                        let top = viewport.min.y - 800.0;
+                        let bot = viewport.max.y + 800.0;
+                        let mut y = 0.0f32;
+                        for (i, b) in doc.blocks.iter().enumerate() {
+                            let h = heights[i];
+                            let known = h > 0.0;
+                            let render = if known {
+                                y + h >= top && y <= bot
+                            } else {
+                                y <= bot
+                            };
+                            if render {
+                                let r = ui.scope(|ui| render_block(ui, b, &rc));
+                                let hh = r.response.rect.height().max(0.5);
+                                heights[i] = hh;
+                                y += hh + sp;
+                            } else {
+                                let hh = if known { h } else { estimate(b, &rc) };
+                                ui.allocate_space(vec2(avail, hh));
+                                y += hh + sp;
+                            }
                         }
-                    }
-                });
+                    });
             }
         });
 
@@ -358,7 +404,11 @@ fn estimate(b: &Block, rc: &RCtx) -> f32 {
                     Inline::PageBreak => 0,
                 })
                 .sum();
-            let pt = if p.default_pt > 0.0 { p.default_pt } else { 11.0 };
+            let pt = if p.default_pt > 0.0 {
+                p.default_pt
+            } else {
+                11.0
+            };
             let line = pt * rc.scale * 1.35;
             ((chars / 55) + 1) as f32 * line
         }
@@ -406,7 +456,11 @@ fn render_para(ui: &mut egui::Ui, p: &Para, rc: &RCtx) {
 }
 
 fn para_inner(ui: &mut egui::Ui, p: &Para, rc: &RCtx) {
-    let base_pt = if p.default_pt > 0.0 { p.default_pt } else { 11.0 };
+    let base_pt = if p.default_pt > 0.0 {
+        p.default_pt
+    } else {
+        11.0
+    };
     let mut job = LayoutJob::default();
     let mut any = false;
     if let Some(l) = &p.label {
@@ -482,15 +536,23 @@ fn run_format(r: &Run, rc: &RCtx) -> TextFormat {
     };
     let mut color = r.color.map(rgb).unwrap_or(TEXT);
     if r.bold && !rc.has_bold && color == TEXT {
-        color = Color32::BLACK; // sin fuente negrita del sistema: al menos más contraste
+        color = Color32::BLACK; // no system bold font: at least increase contrast
     }
     let mut f = TextFormat {
         font_id: FontId::new(size, family),
         color,
         background: r.highlight.map(rgb).unwrap_or(Color32::TRANSPARENT),
         italics: r.italic,
-        underline: if r.underline { Stroke::new(1.0_f32, color) } else { Stroke::NONE },
-        strikethrough: if r.strike { Stroke::new(1.0_f32, color) } else { Stroke::NONE },
+        underline: if r.underline {
+            Stroke::new(1.0_f32, color)
+        } else {
+            Stroke::NONE
+        },
+        strikethrough: if r.strike {
+            Stroke::new(1.0_f32, color)
+        } else {
+            Stroke::NONE
+        },
         ..Default::default()
     };
     if r.sup {
@@ -506,19 +568,23 @@ fn decode_image(bytes: &[u8]) -> Option<egui::ColorImage> {
     }
     let rgba = img.to_rgba8();
     let size = [rgba.width() as usize, rgba.height() as usize];
-    Some(egui::ColorImage::from_rgba_unmultiplied(size, rgba.as_raw()))
+    Some(egui::ColorImage::from_rgba_unmultiplied(
+        size,
+        rgba.as_raw(),
+    ))
 }
 
 fn texture(ui: &egui::Ui, rc: &RCtx, key: &str) -> Option<TextureHandle> {
     if let Some(v) = rc.textures.borrow().get(key) {
         return v.clone();
     }
-    let tex = rc
-        .images
-        .get(key)
-        .and_then(|b| decode_image(b))
-        .map(|ci| ui.ctx().load_texture(format!("doc:{key}"), ci, TextureOptions::LINEAR));
-    rc.textures.borrow_mut().insert(key.to_string(), tex.clone());
+    let tex = rc.images.get(key).and_then(|b| decode_image(b)).map(|ci| {
+        ui.ctx()
+            .load_texture(format!("doc:{key}"), ci, TextureOptions::LINEAR)
+    });
+    rc.textures
+        .borrow_mut()
+        .insert(key.to_string(), tex.clone());
     tex
 }
 

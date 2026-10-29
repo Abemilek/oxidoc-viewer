@@ -1,16 +1,22 @@
-//! Tokenizador XML mínimo escrito a mano (sin dependencias).
-//! Suficiente para document.xml / styles.xml / content.xml. Quita los prefijos de
-//! espacio de nombres (w:val -> val) y emite Start+End también para etiquetas vacías.
+//! Minimal hand-written XML tokenizer with no dependencies.
+//! Sufficient for document.xml, styles.xml, and content.xml. Strips namespace
+//! prefixes (w:val -> val) and emits Start+End for empty tags as well.
 
 #[derive(Debug, Clone)]
 pub enum Tok {
-    Start { name: String, attrs: Vec<(String, String)> },
+    Start {
+        name: String,
+        attrs: Vec<(String, String)>,
+    },
     End(String),
     Text(String),
 }
 
 pub fn attr<'a>(attrs: &'a [(String, String)], key: &str) -> Option<&'a str> {
-    attrs.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
+    attrs
+        .iter()
+        .find(|(k, _)| k == key)
+        .map(|(_, v)| v.as_str())
 }
 
 fn local(name: &str) -> &str {
@@ -39,9 +45,13 @@ pub fn decode(s: &str) -> String {
                     "quot" => Some('"'),
                     "apos" => Some('\''),
                     _ if ent.starts_with("#x") || ent.starts_with("#X") => {
-                        u32::from_str_radix(&ent[2..], 16).ok().and_then(char::from_u32)
+                        u32::from_str_radix(&ent[2..], 16)
+                            .ok()
+                            .and_then(char::from_u32)
                     }
-                    _ if ent.starts_with('#') => ent[1..].parse::<u32>().ok().and_then(char::from_u32),
+                    _ if ent.starts_with('#') => {
+                        ent[1..].parse::<u32>().ok().and_then(char::from_u32)
+                    }
                     _ => None,
                 };
                 match rep {
@@ -67,7 +77,9 @@ pub fn decode(s: &str) -> String {
 
 fn parse_tag(inner: &str, out: &mut Vec<Tok>) -> String {
     let inner = inner.trim_end();
-    let name_end = inner.find(|c: char| c.is_whitespace()).unwrap_or(inner.len());
+    let name_end = inner
+        .find(|c: char| c.is_whitespace())
+        .unwrap_or(inner.len());
     let name = local(&inner[..name_end]).to_string();
     let mut attrs: Vec<(String, String)> = Vec::new();
     let rest = &inner[name_end..];
@@ -115,7 +127,10 @@ fn parse_tag(inner: &str, out: &mut Vec<Tok>) -> String {
             attrs.push((local(key).to_string(), decode(&rest[vs..k])));
         }
     }
-    out.push(Tok::Start { name: name.clone(), attrs });
+    out.push(Tok::Start {
+        name: name.clone(),
+        attrs,
+    });
     name
 }
 
@@ -199,7 +214,7 @@ pub fn tokenize(src: &str) -> Vec<Tok> {
     out
 }
 
-/// Cursor consumidor sobre los tokens (cada token se entrega una sola vez).
+/// Consuming cursor over the token stream (each token is yielded exactly once).
 pub struct Cur {
     t: Vec<Tok>,
     i: usize,
@@ -207,7 +222,10 @@ pub struct Cur {
 
 impl Cur {
     pub fn new(src: &str) -> Self {
-        Cur { t: tokenize(src), i: 0 }
+        Cur {
+            t: tokenize(src),
+            i: 0,
+        }
     }
 
     pub fn next(&mut self) -> Option<Tok> {
@@ -219,7 +237,7 @@ impl Cur {
         Some(t)
     }
 
-    /// Consume hasta cerrar el elemento `name` (se asume que su Start ya fue consumido).
+    /// Consumes tokens until the `name` element closes (assumes its Start was consumed).
     pub fn skip(&mut self, name: &str) {
         let mut depth = 1;
         while let Some(t) = self.next() {

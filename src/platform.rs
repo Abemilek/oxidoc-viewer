@@ -1,5 +1,5 @@
-//! Código específico de plataforma. En Android usa JNI solo para abrir la pantalla de
-//! ajustes "Acceso a todos los archivos" (MANAGE_EXTERNAL_STORAGE) y consultar si ya se concedió.
+//! Platform-specific code. On Android, JNI is used only to open the "All files access"
+//! settings screen (MANAGE_EXTERNAL_STORAGE) and to query whether access was granted.
 use std::path::PathBuf;
 
 #[cfg(target_os = "android")]
@@ -34,9 +34,18 @@ pub fn quick_dirs(_h: &AppHandle) -> Vec<(String, PathBuf)> {
 #[cfg(target_os = "android")]
 pub fn quick_dirs(h: &AppHandle) -> Vec<(String, PathBuf)> {
     let mut v = vec![
-        ("Almacenamiento".to_string(), PathBuf::from("/storage/emulated/0")),
-        ("Descargas".to_string(), PathBuf::from("/storage/emulated/0/Download")),
-        ("Documentos".to_string(), PathBuf::from("/storage/emulated/0/Documents")),
+        (
+            "Almacenamiento".to_string(),
+            PathBuf::from("/storage/emulated/0"),
+        ),
+        (
+            "Descargas".to_string(),
+            PathBuf::from("/storage/emulated/0/Download"),
+        ),
+        (
+            "Documentos".to_string(),
+            PathBuf::from("/storage/emulated/0/Documents"),
+        ),
     ];
     if let Some(p) = h.external_data_path() {
         v.push(("Carpeta de la app".to_string(), p));
@@ -55,7 +64,12 @@ pub fn has_access(h: &AppHandle) -> bool {
     let r = (|| -> Option<bool> {
         let vm = unsafe { JavaVM::from_raw(h.vm_as_ptr() as *mut jni::sys::JavaVM) }.ok()?;
         let mut env = vm.attach_current_thread().ok()?;
-        match env.call_static_method("android/os/Environment", "isExternalStorageManager", "()Z", &[]) {
+        match env.call_static_method(
+            "android/os/Environment",
+            "isExternalStorageManager",
+            "()Z",
+            &[],
+        ) {
             Ok(v) => v.z().ok(),
             Err(_) => {
                 let _ = env.exception_clear();
@@ -63,7 +77,7 @@ pub fn has_access(h: &AppHandle) -> bool {
             }
         }
     })();
-    // Si no se pudo consultar (Android antiguo) asumimos que sí hay acceso.
+    // If the check failed (older Android), assume access is granted.
     r.unwrap_or(true)
 }
 
@@ -80,14 +94,18 @@ pub fn request_access(h: &AppHandle) {
         let mut env = vm.attach_current_thread().ok()?;
         let activity = unsafe { JObject::from_raw(h.activity_as_ptr() as jni::sys::jobject) };
 
-        // 1) Intento: pantalla específica de esta app.
+        // 1) Try the app-specific settings screen.
         let specific = (|| -> Option<()> {
             let action: JObject = env
                 .new_string("android.settings.MANAGE_APP_ALL_FILES_ACCESS_PERMISSION")
                 .ok()?
                 .into();
             let intent = env
-                .new_object("android/content/Intent", "(Ljava/lang/String;)V", &[JValue::Object(&action)])
+                .new_object(
+                    "android/content/Intent",
+                    "(Ljava/lang/String;)V",
+                    &[JValue::Object(&action)],
+                )
                 .ok()?;
             let uri_str: JObject = env.new_string(format!("package:{PACKAGE}")).ok()?.into();
             let uri = env
@@ -107,8 +125,13 @@ pub fn request_access(h: &AppHandle) {
                 &[JValue::Object(&uri)],
             )
             .ok()?;
-            env.call_method(&activity, "startActivity", "(Landroid/content/Intent;)V", &[JValue::Object(&intent)])
-                .ok()?;
+            env.call_method(
+                &activity,
+                "startActivity",
+                "(Landroid/content/Intent;)V",
+                &[JValue::Object(&intent)],
+            )
+            .ok()?;
             Some(())
         })();
         if specific.is_some() {
@@ -116,16 +139,25 @@ pub fn request_access(h: &AppHandle) {
         }
         let _ = env.exception_clear();
 
-        // 2) Alternativa: lista general de apps con acceso a todos los archivos.
+        // 2) Fallback: general list of apps with all-files access.
         let action: JObject = env
             .new_string("android.settings.MANAGE_ALL_FILES_ACCESS_PERMISSION")
             .ok()?
             .into();
         let intent = env
-            .new_object("android/content/Intent", "(Ljava/lang/String;)V", &[JValue::Object(&action)])
+            .new_object(
+                "android/content/Intent",
+                "(Ljava/lang/String;)V",
+                &[JValue::Object(&action)],
+            )
             .ok()?;
         if env
-            .call_method(&activity, "startActivity", "(Landroid/content/Intent;)V", &[JValue::Object(&intent)])
+            .call_method(
+                &activity,
+                "startActivity",
+                "(Landroid/content/Intent;)V",
+                &[JValue::Object(&intent)],
+            )
             .is_err()
         {
             let _ = env.exception_clear();

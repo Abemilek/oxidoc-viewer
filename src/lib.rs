@@ -1,4 +1,4 @@
-//! Visor de documentos escrito en Rust. Sin Java/Kotlin: la app es NativeActivity + egui.
+//! Document viewer written in Rust. No Java or Kotlin: the app is a NativeActivity + egui.
 
 mod doc;
 mod docx;

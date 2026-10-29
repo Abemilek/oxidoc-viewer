@@ -1,4 +1,4 @@
-//! Parser básico de OpenDocument Text (.odt).
+//! Basic OpenDocument Text (.odt) parser.
 use crate::doc::*;
 use crate::load::{read_bytes, read_str};
 use crate::xml::*;
@@ -65,10 +65,16 @@ fn hex_color(s: &str) -> Option<[u8; 3]> {
     ])
 }
 
-/// Convierte "12pt", "2.5cm", "1in", "10mm", "16px" a puntos.
+/// Converts "12pt", "2.5cm", "1in", "10mm", or "16px" to points.
 fn len_pt(s: &str) -> Option<f32> {
     let s = s.trim();
-    let units: [(&str, f32); 5] = [("pt", 1.0), ("cm", 28.3465), ("mm", 2.83465), ("in", 72.0), ("px", 0.75)];
+    let units: [(&str, f32); 5] = [
+        ("pt", 1.0),
+        ("cm", 28.3465),
+        ("mm", 2.83465),
+        ("in", 72.0),
+        ("px", 0.75),
+    ];
     for (u, k) in units {
         if let Some(n) = s.strip_suffix(u) {
             return n.trim().parse::<f32>().ok().map(|v| v * k);
@@ -193,9 +199,13 @@ fn heading_pt(level: u8) -> f32 {
 }
 
 fn push_text(buf: &mut String, s: &str) {
-    // ODF colapsa blancos; los espacios múltiples reales vienen como <text:s/>
+    // ODF collapses whitespace; real repeated spaces are encoded as <text:s/>.
     for ch in s.chars() {
-        let ch = if ch == '\n' || ch == '\t' || ch == '\r' { ' ' } else { ch };
+        let ch = if ch == '\n' || ch == '\t' || ch == '\r' {
+            ' '
+        } else {
+            ch
+        };
         if ch == ' ' && buf.ends_with(' ') {
             continue;
         }
@@ -221,14 +231,19 @@ fn flush(buf: &mut String, props: &OStyle, out: &mut Vec<Inline>) {
     }));
 }
 
-/// Se llama con el Start de <text:p> o <text:h> ya consumido; `end` es "p" o "h".
+/// Called after the Start of <text:p> or <text:h> has been consumed; `end` is "p" or "h".
 fn parse_para(cur: &mut Cur, cx: &mut Ctx, end: &str, attrs: &[(String, String)]) -> Para {
     let heading: u8 = if end == "h" {
-        attr(attrs, "outline-level").and_then(|v| v.parse::<u8>().ok()).unwrap_or(1).clamp(1, 6)
+        attr(attrs, "outline-level")
+            .and_then(|v| v.parse::<u8>().ok())
+            .unwrap_or(1)
+            .clamp(1, 6)
     } else {
         0
     };
-    let mut base = attr(attrs, "style-name").map(|n| cx.st.resolved(n)).unwrap_or_default();
+    let mut base = attr(attrs, "style-name")
+        .map(|n| cx.st.resolved(n))
+        .unwrap_or_default();
     if heading > 0 {
         if base.size.is_none() {
             base.size = Some(heading_pt(heading));
@@ -279,7 +294,10 @@ fn parse_para(cur: &mut Cur, cx: &mut Ctx, end: &str, attrs: &[(String, String)]
                     stack.push(cur_style);
                 }
                 "s" => {
-                    let n: usize = attr(&a, "c").and_then(|v| v.parse::<usize>().ok()).unwrap_or(1).min(200);
+                    let n: usize = attr(&a, "c")
+                        .and_then(|v| v.parse::<usize>().ok())
+                        .unwrap_or(1)
+                        .min(200);
                     for _ in 0..n {
                         buf.push(' ');
                     }
@@ -297,7 +315,11 @@ fn parse_para(cur: &mut Cur, cx: &mut Ctx, end: &str, attrs: &[(String, String)]
                         if !cx.media.contains(&key) {
                             cx.media.push(key.clone());
                         }
-                        p.inlines.push(Inline::Image { key, w_pt: fw, h_pt: fh });
+                        p.inlines.push(Inline::Image {
+                            key,
+                            w_pt: fw,
+                            h_pt: fh,
+                        });
                     }
                 }
                 "text-box" | "annotation" | "note" => cur.skip(&name),
@@ -309,9 +331,20 @@ fn parse_para(cur: &mut Cur, cx: &mut Ctx, end: &str, attrs: &[(String, String)]
     p
 }
 
-fn parse_list(cur: &mut Cur, cx: &mut Ctx, depth: usize, inherited: Option<String>, out: &mut Vec<Block>, attrs: &[(String, String)]) {
+fn parse_list(
+    cur: &mut Cur,
+    cx: &mut Ctx,
+    depth: usize,
+    inherited: Option<String>,
+    out: &mut Vec<Block>,
+    attrs: &[(String, String)],
+) {
     let name: Option<String> = attr(attrs, "style-name").map(String::from).or(inherited);
-    let ordered = name.as_ref().and_then(|n| cx.st.ordered.get(n)).copied().unwrap_or(false);
+    let ordered = name
+        .as_ref()
+        .and_then(|n| cx.st.ordered.get(n))
+        .copied()
+        .unwrap_or(false);
     let mut counter = 0u32;
     while let Some(t) = cur.next() {
         match t {
@@ -331,7 +364,10 @@ fn parse_list(cur: &mut Cur, cx: &mut Ctx, depth: usize, inherited: Option<Strin
                                     break;
                                 }
                             }
-                            Tok::Start { name: n2, attrs: a2 } => match n2.as_str() {
+                            Tok::Start {
+                                name: n2,
+                                attrs: a2,
+                            } => match n2.as_str() {
                                 "p" | "h" => {
                                     let mut p = parse_para(cur, cx, &n2, &a2);
                                     p.indent_pt = 18.0 * (depth as f32 + 1.0);
@@ -380,7 +416,7 @@ fn parse_cell_blocks(cur: &mut Cur, cx: &mut Ctx) -> Vec<Block> {
     blocks
 }
 
-/// Se llama con el Start de <table:table> ya consumido.
+/// Called after the Start of <table:table> has been consumed.
 fn parse_table(cur: &mut Cur, cx: &mut Ctx) -> Table {
     let mut rows: Vec<Vec<Cell>> = Vec::new();
     while let Some(t) = cur.next() {
@@ -402,7 +438,9 @@ fn parse_table(cur: &mut Cur, cx: &mut Ctx) -> Table {
                             }
                             Tok::Start { name: n2, .. } => {
                                 if n2 == "table-cell" {
-                                    cells.push(Cell { blocks: parse_cell_blocks(cur, cx) });
+                                    cells.push(Cell {
+                                        blocks: parse_cell_blocks(cur, cx),
+                                    });
                                 }
                             }
                             _ => {}
@@ -418,15 +456,20 @@ fn parse_table(cur: &mut Cur, cx: &mut Ctx) -> Table {
 }
 
 pub fn parse(bytes: &[u8]) -> Result<Document, String> {
-    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("ZIP inválido: {e}"))?;
-    let content = read_str(&mut zip, "content.xml").ok_or_else(|| "No se encontró content.xml".to_string())?;
+    let mut zip =
+        zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("ZIP inválido: {e}"))?;
+    let content = read_str(&mut zip, "content.xml")
+        .ok_or_else(|| "No se encontró content.xml".to_string())?;
     let mut st = Styles::default();
     if let Some(s) = read_str(&mut zip, "styles.xml") {
         st.scan(&s);
     }
     st.scan(&content);
 
-    let mut cx = Ctx { st: &st, media: Vec::new() };
+    let mut cx = Ctx {
+        st: &st,
+        media: Vec::new(),
+    };
     let mut cur = Cur::new(&content);
     let mut blocks: Vec<Block> = Vec::new();
     while let Some(t) = cur.next() {
@@ -447,5 +490,9 @@ pub fn parse(bytes: &[u8]) -> Result<Document, String> {
             images.insert(k, b);
         }
     }
-    Ok(Document { blocks, images, title: String::new() })
+    Ok(Document {
+        blocks,
+        images,
+        title: String::new(),
+    })
 }

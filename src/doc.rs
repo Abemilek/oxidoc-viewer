@@ -1,4 +1,4 @@
-//! Modelo interno de documento (independiente del formato de origen).
+//! Internal document model, independent of the source format.
 use std::collections::HashMap;
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -59,7 +59,7 @@ pub enum Block {
 #[derive(Default)]
 pub struct Document {
     pub blocks: Vec<Block>,
-    /// ruta interna del zip -> bytes de la imagen
+    /// ZIP-internal path -> image bytes.
     pub images: HashMap<String, Vec<u8>>,
     pub title: String,
 }

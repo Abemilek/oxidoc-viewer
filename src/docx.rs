@@ -1,11 +1,11 @@
-//! Parser de .docx (WordprocessingML) escrito a mano sobre `zip` + tokenizador propio.
+//! Hand-written .docx (WordprocessingML) parser on top of `zip` and a custom tokenizer.
 use crate::doc::*;
 use crate::load::{read_bytes, read_str};
 use crate::xml::*;
 use std::collections::HashMap;
 use std::io::Cursor;
 
-// ---------------------------------------------------------------- propiedades
+// ---------------------------------------------------------------- properties
 
 #[derive(Clone, Default)]
 struct RPr {
@@ -119,7 +119,7 @@ fn highlight_color(v: &str) -> Option<[u8; 3]> {
     })
 }
 
-/// Se llama con el Start de <w:rPr> ya consumido.
+/// Called after the Start of <w:rPr> has been consumed.
 fn parse_rpr(cur: &mut Cur) -> RPr {
     let mut r = RPr::default();
     while let Some(t) = cur.next() {
@@ -135,7 +135,11 @@ fn parse_rpr(cur: &mut Cur) -> RPr {
                 "u" => r.underline = Some(on(&attrs)),
                 "strike" | "dstrike" => r.strike = Some(on(&attrs)),
                 "color" => r.color = attr(&attrs, "val").and_then(hex),
-                "sz" => r.size = attr(&attrs, "val").and_then(|v| v.parse::<f32>().ok()).map(|v| v / 2.0),
+                "sz" => {
+                    r.size = attr(&attrs, "val")
+                        .and_then(|v| v.parse::<f32>().ok())
+                        .map(|v| v / 2.0)
+                }
                 "highlight" => r.highlight = attr(&attrs, "val").and_then(highlight_color),
                 "vertAlign" => {
                     r.vert = match attr(&attrs, "val") {
@@ -154,7 +158,7 @@ fn parse_rpr(cur: &mut Cur) -> RPr {
     r
 }
 
-/// Se llama con el Start de <w:pPr> ya consumido.
+/// Called after the Start of <w:pPr> has been consumed.
 fn parse_ppr(cur: &mut Cur) -> PPr {
     let mut p = PPr::default();
     while let Some(t) = cur.next() {
@@ -196,7 +200,7 @@ fn parse_ppr(cur: &mut Cur) -> PPr {
     p
 }
 
-// ---------------------------------------------------------------- estilos
+// ---------------------------------------------------------------- styles
 
 #[derive(Default)]
 struct Style {
@@ -314,7 +318,7 @@ fn heading_pt(level: u8) -> f32 {
     }
 }
 
-// ---------------------------------------------------------------- numeración
+// ---------------------------------------------------------------- numbering
 
 struct LvlDef {
     fmt: String,
@@ -339,7 +343,9 @@ fn parse_numbering(xml: &str) -> Numbering {
         };
         match name.as_str() {
             "abstractNum" => {
-                let id: u32 = attr(&attrs, "abstractNumId").and_then(|v| v.parse().ok()).unwrap_or(0);
+                let id: u32 = attr(&attrs, "abstractNumId")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0);
                 let mut lvls: HashMap<usize, LvlDef> = HashMap::new();
                 while let Some(t2) = cur.next() {
                     match t2 {
@@ -348,9 +354,13 @@ fn parse_numbering(xml: &str) -> Numbering {
                                 break;
                             }
                         }
-                        Tok::Start { name: n2, attrs: a2 } => {
+                        Tok::Start {
+                            name: n2,
+                            attrs: a2,
+                        } => {
                             if n2 == "lvl" {
-                                let ilvl: usize = attr(&a2, "ilvl").and_then(|v| v.parse().ok()).unwrap_or(0);
+                                let ilvl: usize =
+                                    attr(&a2, "ilvl").and_then(|v| v.parse().ok()).unwrap_or(0);
                                 let mut def = LvlDef {
                                     fmt: "decimal".into(),
                                     text: String::new(),
@@ -364,13 +374,29 @@ fn parse_numbering(xml: &str) -> Numbering {
                                                 break;
                                             }
                                         }
-                                        Tok::Start { name: n3, attrs: a3 } => match n3.as_str() {
-                                            "start" => def.start = attr(&a3, "val").and_then(|v| v.parse().ok()).unwrap_or(1),
-                                            "numFmt" => def.fmt = attr(&a3, "val").unwrap_or("decimal").to_string(),
-                                            "lvlText" => def.text = attr(&a3, "val").unwrap_or("").to_string(),
+                                        Tok::Start {
+                                            name: n3,
+                                            attrs: a3,
+                                        } => match n3.as_str() {
+                                            "start" => {
+                                                def.start = attr(&a3, "val")
+                                                    .and_then(|v| v.parse().ok())
+                                                    .unwrap_or(1)
+                                            }
+                                            "numFmt" => {
+                                                def.fmt = attr(&a3, "val")
+                                                    .unwrap_or("decimal")
+                                                    .to_string()
+                                            }
+                                            "lvlText" => {
+                                                def.text =
+                                                    attr(&a3, "val").unwrap_or("").to_string()
+                                            }
                                             "ind" => {
                                                 let v = attr(&a3, "left").or(attr(&a3, "start"));
-                                                def.ind = v.and_then(|v| v.parse::<f32>().ok()).map(|v| v / 20.0);
+                                                def.ind = v
+                                                    .and_then(|v| v.parse::<f32>().ok())
+                                                    .map(|v| v / 20.0);
                                             }
                                             _ => {}
                                         },
@@ -386,7 +412,9 @@ fn parse_numbering(xml: &str) -> Numbering {
                 n.abs.insert(id, lvls);
             }
             "num" => {
-                let id: u32 = attr(&attrs, "numId").and_then(|v| v.parse().ok()).unwrap_or(0);
+                let id: u32 = attr(&attrs, "numId")
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(0);
                 while let Some(t2) = cur.next() {
                     match t2 {
                         Tok::End(e) => {
@@ -394,7 +422,10 @@ fn parse_numbering(xml: &str) -> Numbering {
                                 break;
                             }
                         }
-                        Tok::Start { name: n2, attrs: a2 } => match n2.as_str() {
+                        Tok::Start {
+                            name: n2,
+                            attrs: a2,
+                        } => match n2.as_str() {
                             "abstractNumId" => {
                                 if let Some(a) = attr(&a2, "val").and_then(|v| v.parse().ok()) {
                                     n.nums.insert(id, a);
@@ -464,7 +495,7 @@ fn fmt_num(n: u32, fmt: &str) -> String {
     }
 }
 
-// ---------------------------------------------------------------- relaciones
+// ---------------------------------------------------------------- relationships
 
 fn parse_rels(xml: &str) -> HashMap<String, String> {
     let mut cur = Cur::new(xml);
@@ -481,7 +512,7 @@ fn parse_rels(xml: &str) -> HashMap<String, String> {
     m
 }
 
-// ---------------------------------------------------------------- contexto
+// ---------------------------------------------------------------- context
 
 struct Ctx<'a> {
     styles: &'a Styles,
@@ -508,7 +539,7 @@ impl<'a> Ctx<'a> {
         Some(path)
     }
 
-    /// Devuelve (etiqueta, sangría izquierda en pt si la define el nivel).
+    /// Returns (label, left indent in pt when defined by the level).
     fn list_label(&mut self, num_id: u32, ilvl: usize) -> Option<(String, Option<f32>)> {
         let ilvl = ilvl.min(8);
         let num = self.num;
@@ -554,7 +585,7 @@ impl<'a> Ctx<'a> {
     }
 }
 
-// ---------------------------------------------------------------- bloques
+// ---------------------------------------------------------------- blocks
 
 fn apply_ppr(ppr: &PPr, p: &mut Para, base: &mut RPr, cx: &mut Ctx) {
     let style_id: Option<String> = ppr.style.clone().or_else(|| cx.styles.default_para.clone());
@@ -563,7 +594,10 @@ fn apply_ppr(ppr: &PPr, p: &mut Para, base: &mut RPr, cx: &mut Ctx) {
         None => (RPr::default(), PPr::default()),
     };
     base.merge(&srpr);
-    let sname = style_id.as_deref().map(|id| cx.styles.name(id)).unwrap_or("");
+    let sname = style_id
+        .as_deref()
+        .map(|id| cx.styles.name(id))
+        .unwrap_or("");
     let mut level = heading_level(sname);
     if level == 0 {
         let o = ppr.outline.or(sppr.outline).unwrap_or(0);
@@ -604,7 +638,7 @@ enum Item {
     Page,
 }
 
-/// Se llama con el Start de <w:r> ya consumido.
+/// Called after the Start of <w:r> has been consumed.
 fn parse_run(cur: &mut Cur, cx: &mut Ctx, base: &RPr, link: bool, out: &mut Vec<Inline>) {
     let mut direct = RPr::default();
     let mut items: Vec<Item> = Vec::new();
@@ -673,8 +707,14 @@ fn parse_run(cur: &mut Cur, cx: &mut Ctx, base: &RPr, link: bool, out: &mut Vec<
                                     }
                                     "extent" => {
                                         if w == 0.0 {
-                                            w = attr(&a, "cx").and_then(|v| v.parse::<f32>().ok()).unwrap_or(0.0) / 12700.0;
-                                            h = attr(&a, "cy").and_then(|v| v.parse::<f32>().ok()).unwrap_or(0.0) / 12700.0;
+                                            w = attr(&a, "cx")
+                                                .and_then(|v| v.parse::<f32>().ok())
+                                                .unwrap_or(0.0)
+                                                / 12700.0;
+                                            h = attr(&a, "cy")
+                                                .and_then(|v| v.parse::<f32>().ok())
+                                                .unwrap_or(0.0)
+                                                / 12700.0;
                                         }
                                     }
                                     _ => {}
@@ -737,15 +777,22 @@ fn parse_run(cur: &mut Cur, cx: &mut Ctx, base: &RPr, link: bool, out: &mut Vec<
                 sup: props.vert == Some(1),
                 sub: props.vert == Some(-1),
             })),
-            Item::Img { key, w, h } => out.push(Inline::Image { key, w_pt: w, h_pt: h }),
+            Item::Img { key, w, h } => out.push(Inline::Image {
+                key,
+                w_pt: w,
+                h_pt: h,
+            }),
             Item::Page => out.push(Inline::PageBreak),
         }
     }
 }
 
-/// Se llama con el Start de <w:p> ya consumido.
+/// Called after the Start of <w:p> has been consumed.
 fn parse_para(cur: &mut Cur, cx: &mut Ctx) -> Para {
-    let mut p = Para { default_pt: cx.default_pt, ..Default::default() };
+    let mut p = Para {
+        default_pt: cx.default_pt,
+        ..Default::default()
+    };
     let mut base = cx.styles.default_rpr.clone();
     apply_ppr(&PPr::default(), &mut p, &mut base, cx);
     let mut link: i32 = 0;
@@ -775,7 +822,7 @@ fn parse_para(cur: &mut Cur, cx: &mut Ctx) -> Para {
     p
 }
 
-/// Se llama con el Start de <w:tbl> ya consumido.
+/// Called after the Start of <w:tbl> has been consumed.
 fn parse_table(cur: &mut Cur, cx: &mut Ctx) -> Table {
     let mut rows = Vec::new();
     while let Some(t) = cur.next() {
@@ -836,14 +883,19 @@ fn parse_cell(cur: &mut Cur, cx: &mut Ctx) -> Cell {
     Cell { blocks }
 }
 
-// ---------------------------------------------------------------- entrada
+// ---------------------------------------------------------------- entrypoint
 
 pub fn parse(bytes: &[u8]) -> Result<Document, String> {
-    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("ZIP inválido: {e}"))?;
+    let mut zip =
+        zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("ZIP inválido: {e}"))?;
     let doc_xml = read_str(&mut zip, "word/document.xml")
         .ok_or_else(|| "No se encontró word/document.xml (¿es un .docx válido?)".to_string())?;
-    let styles = read_str(&mut zip, "word/styles.xml").map(|s| parse_styles(&s)).unwrap_or_default();
-    let numbering = read_str(&mut zip, "word/numbering.xml").map(|s| parse_numbering(&s)).unwrap_or_default();
+    let styles = read_str(&mut zip, "word/styles.xml")
+        .map(|s| parse_styles(&s))
+        .unwrap_or_default();
+    let numbering = read_str(&mut zip, "word/numbering.xml")
+        .map(|s| parse_numbering(&s))
+        .unwrap_or_default();
     let rels = read_str(&mut zip, "word/_rels/document.xml.rels")
         .map(|s| parse_rels(&s))
         .unwrap_or_default();
@@ -883,5 +935,9 @@ pub fn parse(bytes: &[u8]) -> Result<Document, String> {
             images.insert(k, bytes);
         }
     }
-    Ok(Document { blocks, images, title: String::new() })
+    Ok(Document {
+        blocks,
+        images,
+        title: String::new(),
+    })
 }

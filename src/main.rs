@@ -1,5 +1,5 @@
-//! Binario de escritorio: sirve para probar el visor en la laptop con `cargo run`.
-//! Uso: cargo run --release -- [ruta/al/archivo.docx | carpeta]
+//! Desktop binary: used to test the viewer locally with `cargo run`.
+//! Usage: cargo run --release -- [path/to/file.docx | directory]
 fn main() {
     #[cfg(not(target_os = "android"))]
     {

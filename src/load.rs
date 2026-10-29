@@ -1,4 +1,4 @@
-//! Carga de archivos: detecta el formato y delega al parser correspondiente.
+//! File loading: detects the format and delegates to the matching parser.
 use crate::doc::Document;
 use std::io::{Cursor, Read, Seek};
 use std::path::Path;
@@ -63,9 +63,13 @@ pub fn load(path: &Path) -> Result<Document, String> {
         } else if is_odt {
             crate::odt::parse(&bytes)?
         } else {
-            return Err("El ZIP no contiene un documento Word (.docx) ni OpenDocument (.odt).".into());
+            return Err(
+                "El ZIP no contiene un documento Word (.docx) ni OpenDocument (.odt).".into(),
+            );
         }
-    } else if matches!(ext.as_str(), "txt" | "md" | "log" | "csv") || std::str::from_utf8(&bytes).is_ok() {
+    } else if matches!(ext.as_str(), "txt" | "md" | "log" | "csv")
+        || std::str::from_utf8(&bytes).is_ok()
+    {
         crate::text::parse(&bytes, ext == "md")
     } else {
         return Err("Formato no reconocido.".into());

@@ -1,4 +1,4 @@
-//! Texto plano / Markdown básico (solo encabezados # por línea).
+//! Plain text and basic Markdown (only line-leading # headings).
 use crate::doc::*;
 
 pub fn parse(bytes: &[u8], markdown: bool) -> Document {
@@ -21,7 +21,11 @@ pub fn parse(bytes: &[u8], markdown: bool) -> Document {
             3 => 14.0,
             _ => 12.0,
         };
-        let mut p = Para { heading: level, default_pt: 11.0, ..Default::default() };
+        let mut p = Para {
+            heading: level,
+            default_pt: 11.0,
+            ..Default::default()
+        };
         if !text.is_empty() {
             p.inlines.push(Inline::Text(Run {
                 text: text.replace('\t', "    "),
@@ -32,5 +36,8 @@ pub fn parse(bytes: &[u8], markdown: bool) -> Document {
         }
         blocks.push(Block::Para(p));
     }
-    Document { blocks, ..Default::default() }
+    Document {
+        blocks,
+        ..Default::default()
+    }
 }
