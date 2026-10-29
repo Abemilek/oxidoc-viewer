@@ -42,15 +42,13 @@ pub struct ViewerApp {
     next_check: f64,
 }
 
-/// Looks for a system bold font (Android: /system/fonts; Linux: DejaVu/Liberation/Noto).
+/// Looks for a system bold font under `/system/fonts`.
 fn setup_fonts(ctx: &egui::Context) -> bool {
     let candidates = [
         "/system/fonts/NotoSerif-Bold.ttf",
+        "/system/fonts/NotoSans-Bold.ttf",
         "/system/fonts/DroidSans-Bold.ttf",
         "/system/fonts/Roboto-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        "/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf",
     ];
     for p in candidates {
         if let Ok(bytes) = std::fs::read(p) {
@@ -75,11 +73,7 @@ fn setup_fonts(ctx: &egui::Context) -> bool {
 }
 
 impl ViewerApp {
-    pub fn new(
-        cc: &eframe::CreationContext<'_>,
-        handle: AppHandle,
-        start: Option<PathBuf>,
-    ) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, handle: AppHandle) -> Self {
         let ctx = &cc.egui_ctx;
         ctx.set_visuals(egui::Visuals::light());
         ctx.style_mut(|s| {
@@ -107,18 +101,6 @@ impl ViewerApp {
             access_ok,
             next_check: 0.0,
         };
-        if let Some(p) = start {
-            if p.is_dir() {
-                app.dir = p;
-            } else {
-                if let Some(parent) = p.parent() {
-                    if !parent.as_os_str().is_empty() {
-                        app.dir = parent.to_path_buf();
-                    }
-                }
-                app.open_file(&p);
-            }
-        }
         app.refresh();
         app
     }
@@ -149,7 +131,7 @@ impl ViewerApp {
                 });
             }
             Err(e) => {
-                self.dir_error = Some(format!("No se puede abrir la carpeta: {e}"));
+                self.dir_error = Some(format!("Could not open folder: {e}"));
             }
         }
     }
@@ -185,7 +167,7 @@ impl ViewerApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.add_space(8.0);
-            ui.heading("Visor de documentos");
+            ui.heading("Document Viewer");
             ui.label(egui::RichText::new(self.dir.display().to_string()).small());
             ui.add_space(4.0);
             ui.horizontal_wrapped(|ui| {
@@ -198,13 +180,13 @@ impl ViewerApp {
             if !self.access_ok {
                 ui.colored_label(
                     Color32::from_rgb(180, 90, 0),
-                    "Para ver tus archivos hace falta el permiso «Acceso a todos los archivos».",
+                    "To browse your files, the app needs the \"All files access\" permission.",
                 );
                 ui.horizontal(|ui| {
-                    if ui.button("Conceder acceso").clicked() {
+                    if ui.button("Grant access").clicked() {
                         ask = true;
                     }
-                    if ui.button("Ya lo concedí").clicked() {
+                    if ui.button("Already granted").clicked() {
                         recheck = true;
                     }
                 });
@@ -212,7 +194,7 @@ impl ViewerApp {
             if let Some(m) = &self.message {
                 ui.colored_label(Color32::from_rgb(190, 40, 40), m.as_str());
             }
-            if ui.button("⬆ Carpeta superior").clicked() {
+            if ui.button("⬆ Parent folder").clicked() {
                 up = true;
             }
             ui.separator();
@@ -236,7 +218,7 @@ impl ViewerApp {
                         }
                     }
                     if self.entries.is_empty() && self.dir_error.is_none() {
-                        ui.label("(carpeta vacía o sin documentos compatibles)");
+                        ui.label("(empty folder or no supported documents)");
                     }
                 });
         });
@@ -276,7 +258,7 @@ impl ViewerApp {
         egui::TopBottomPanel::top("bar").show(ctx, |ui| {
             ui.add_space(6.0);
             ui.horizontal(|ui| {
-                if ui.button("◀ Volver").clicked() {
+                if ui.button("◀ Back").clicked() {
                     close = true;
                 }
                 if ui.button("−").clicked() {
@@ -323,7 +305,7 @@ impl ViewerApp {
                     has_bold,
                 };
                 egui::ScrollArea::vertical()
-                    .id_salt(("visor", name.as_str()))
+                    .id_salt(("document", name.as_str()))
                     .auto_shrink([false, false])
                     .show_viewport(ui, |ui, viewport| {
                         ui.spacing_mut().item_spacing.y = (6.0 * zoom).clamp(3.0, 18.0);
@@ -605,7 +587,7 @@ fn draw_image(ui: &mut egui::Ui, rc: &RCtx, key: &str, w_pt: f32, h_pt: f32) {
             ui.add(egui::Image::new((tex.id(), vec2(w, h))));
         }
         None => {
-            ui.label("[imagen no soportada]");
+            ui.label("[unsupported image]");
         }
     }
 }

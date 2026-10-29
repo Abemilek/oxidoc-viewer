@@ -887,9 +887,9 @@ fn parse_cell(cur: &mut Cur, cx: &mut Ctx) -> Cell {
 
 pub fn parse(bytes: &[u8]) -> Result<Document, String> {
     let mut zip =
-        zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("ZIP inválido: {e}"))?;
+        zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("Invalid ZIP: {e}"))?;
     let doc_xml = read_str(&mut zip, "word/document.xml")
-        .ok_or_else(|| "No se encontró word/document.xml (¿es un .docx válido?)".to_string())?;
+        .ok_or_else(|| "word/document.xml not found (is this a valid .docx file?)".to_string())?;
     let styles = read_str(&mut zip, "word/styles.xml")
         .map(|s| parse_styles(&s))
         .unwrap_or_default();

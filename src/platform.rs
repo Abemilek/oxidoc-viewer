@@ -1,64 +1,29 @@
-//! Platform-specific code. On Android, JNI is used only to open the "All files access"
-//! settings screen (MANAGE_EXTERNAL_STORAGE) and to query whether access was granted.
+//! Android platform helpers. JNI is used only to open the "All files access" settings screen
+//! (MANAGE_EXTERNAL_STORAGE) and to query whether access was granted.
 use std::path::PathBuf;
 
-#[cfg(target_os = "android")]
 pub type AppHandle = android_activity::AndroidApp;
-#[cfg(not(target_os = "android"))]
-pub type AppHandle = ();
 
-#[cfg(target_os = "android")]
 const PACKAGE: &str = "dev.visordocx.rs";
 
-#[cfg(not(target_os = "android"))]
-pub fn quick_dirs(_h: &AppHandle) -> Vec<(String, PathBuf)> {
-    let mut v = Vec::new();
-    if let Some(home) = std::env::var_os("HOME") {
-        let home = PathBuf::from(home);
-        v.push(("Inicio".to_string(), home.clone()));
-        for (label, d) in [
-            ("Documentos", "Documentos"),
-            ("Documents", "Documents"),
-            ("Descargas", "Descargas"),
-            ("Downloads", "Downloads"),
-        ] {
-            let p = home.join(d);
-            if p.is_dir() {
-                v.push((label.to_string(), p));
-            }
-        }
-    }
-    v
-}
-
-#[cfg(target_os = "android")]
 pub fn quick_dirs(h: &AppHandle) -> Vec<(String, PathBuf)> {
     let mut v = vec![
+        ("Storage".to_string(), PathBuf::from("/storage/emulated/0")),
         (
-            "Almacenamiento".to_string(),
-            PathBuf::from("/storage/emulated/0"),
-        ),
-        (
-            "Descargas".to_string(),
+            "Downloads".to_string(),
             PathBuf::from("/storage/emulated/0/Download"),
         ),
         (
-            "Documentos".to_string(),
+            "Documents".to_string(),
             PathBuf::from("/storage/emulated/0/Documents"),
         ),
     ];
     if let Some(p) = h.external_data_path() {
-        v.push(("Carpeta de la app".to_string(), p));
+        v.push(("App folder".to_string(), p));
     }
     v
 }
 
-#[cfg(not(target_os = "android"))]
-pub fn has_access(_h: &AppHandle) -> bool {
-    true
-}
-
-#[cfg(target_os = "android")]
 pub fn has_access(h: &AppHandle) -> bool {
     use jni::JavaVM;
     let r = (|| -> Option<bool> {
@@ -81,10 +46,6 @@ pub fn has_access(h: &AppHandle) -> bool {
     r.unwrap_or(true)
 }
 
-#[cfg(not(target_os = "android"))]
-pub fn request_access(_h: &AppHandle) {}
-
-#[cfg(target_os = "android")]
 pub fn request_access(h: &AppHandle) {
     use jni::objects::{JObject, JValue};
     use jni::JavaVM;

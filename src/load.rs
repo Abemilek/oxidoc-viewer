@@ -34,11 +34,11 @@ fn ext_of(name: &str) -> String {
 }
 
 pub fn load(path: &Path) -> Result<Document, String> {
-    let meta = std::fs::metadata(path).map_err(|e| format!("No se puede leer el archivo: {e}"))?;
+    let meta = std::fs::metadata(path).map_err(|e| format!("Cannot read file: {e}"))?;
     if meta.len() > MAX_FILE {
-        return Err("El archivo es demasiado grande (máx. 150 MB).".into());
+        return Err("File is too large (150 MB maximum).".into());
     }
-    let bytes = std::fs::read(path).map_err(|e| format!("No se puede leer el archivo: {e}"))?;
+    let bytes = std::fs::read(path).map_err(|e| format!("Cannot read file: {e}"))?;
     let name = path
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -46,15 +46,15 @@ pub fn load(path: &Path) -> Result<Document, String> {
     let ext = ext_of(&name);
 
     if bytes.starts_with(&[0xD0, 0xCF, 0x11, 0xE0]) {
-        return Err("Este es un .doc binario antiguo (OLE). Aún no está soportado: guárdalo como .docx (p. ej. con LibreOffice o Word) y vuelve a abrirlo.".into());
+        return Err("This is a legacy binary .doc file (OLE). It is not supported yet: save it as .docx (for example, with LibreOffice or Word) and open it again.".into());
     }
     if bytes.starts_with(b"{\\rtf") {
-        return Err("El formato RTF todavía no está soportado. Guárdalo como .docx u .odt.".into());
+        return Err("RTF is not supported yet. Save the file as .docx or .odt.".into());
     }
 
     let mut doc = if bytes.starts_with(b"PK") {
         let mut z = zip::ZipArchive::new(Cursor::new(&bytes[..]))
-            .map_err(|e| format!("Archivo ZIP/Office inválido: {e}"))?;
+            .map_err(|e| format!("Invalid ZIP/Office file: {e}"))?;
         let is_docx = z.by_name("word/document.xml").is_ok();
         let is_odt = z.by_name("content.xml").is_ok();
         drop(z);
@@ -64,7 +64,7 @@ pub fn load(path: &Path) -> Result<Document, String> {
             crate::odt::parse(&bytes)?
         } else {
             return Err(
-                "El ZIP no contiene un documento Word (.docx) ni OpenDocument (.odt).".into(),
+                "The ZIP does not contain a Word (.docx) or OpenDocument (.odt) document.".into(),
             );
         }
     } else if matches!(ext.as_str(), "txt" | "md" | "log" | "csv")
@@ -72,7 +72,7 @@ pub fn load(path: &Path) -> Result<Document, String> {
     {
         crate::text::parse(&bytes, ext == "md")
     } else {
-        return Err("Formato no reconocido.".into());
+        return Err("Unrecognized format.".into());
     };
     doc.title = name;
     Ok(doc)

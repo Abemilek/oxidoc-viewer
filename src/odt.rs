@@ -457,9 +457,9 @@ fn parse_table(cur: &mut Cur, cx: &mut Ctx) -> Table {
 
 pub fn parse(bytes: &[u8]) -> Result<Document, String> {
     let mut zip =
-        zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("ZIP inválido: {e}"))?;
-    let content = read_str(&mut zip, "content.xml")
-        .ok_or_else(|| "No se encontró content.xml".to_string())?;
+        zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("Invalid ZIP: {e}"))?;
+    let content =
+        read_str(&mut zip, "content.xml").ok_or_else(|| "content.xml not found".to_string())?;
     let mut st = Styles::default();
     if let Some(s) = read_str(&mut zip, "styles.xml") {
         st.scan(&s);

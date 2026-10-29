@@ -2,28 +2,20 @@
 name = "visor-docx"
 version = "0.1.0"
 edition = "2021"
-description = "A Word (.docx), OpenDocument (.odt) and plain-text viewer written entirely in Rust with egui, for Android and desktop"
+description = "A Word (.docx), OpenDocument (.odt) and plain-text viewer written entirely in Rust with egui, for Android"
 license = "MIT"
 
 [lib]
 name = "visor_docx"
 # cdylib => libvisor_docx.so loaded by NativeActivity on Android
-# lib    => also allows use from the desktop binary
-crate-type = ["lib", "cdylib"]
-
-[[bin]]
-name = "visor-docx-desktop"
-path = "src/main.rs"
+# lib    => host-side parser tests
+crate-type = ["cdylib", "lib"]
 
 [dependencies]
 # Pure-Rust ZIP (no bzip2/zstd, which pull in C code). Deflate only.
 zip = { version = "2", default-features = false, features = ["deflate"] }
 # Pure-Rust image decoders
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp"] }
-
-# ---------- Desktop (for quick local testing) ----------
-[target.'cfg(not(target_os = "android"))'.dependencies]
-eframe = { version = "0.32", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
 
 # ---------- Android ----------
 [target.'cfg(target_os = "android")'.dependencies]
@@ -45,7 +37,7 @@ strip = true
 # ---------- APK packaging with cargo-apk ----------
 [package.metadata.android]
 package = "dev.visordocx.rs"
-apk_name = "VisorDocx"
+apk_name = "DocxViewer"
 build_targets = ["aarch64-linux-android"]
 
 [package.metadata.android.sdk]
@@ -53,7 +45,7 @@ min_sdk_version = 30
 target_sdk_version = 34
 
 [package.metadata.android.application]
-label = "Visor DOCX"
+label = "DOCX Viewer"
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.MANAGE_EXTERNAL_STORAGE"

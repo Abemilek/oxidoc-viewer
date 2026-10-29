@@ -1,27 +1,19 @@
-//! Document viewer written in Rust. No Java or Kotlin: the app is a NativeActivity + egui.
+//! Android document viewer written in Rust. No Java or Kotlin: the app is a NativeActivity + egui.
+
+// The UI is Android-only; host builds use the parser modules for tests.
+#![cfg_attr(not(target_os = "android"), allow(dead_code))]
 
 mod doc;
 mod docx;
 mod load;
 mod odt;
-mod platform;
 mod text;
-mod ui;
 mod xml;
 
-#[cfg(not(target_os = "android"))]
-pub fn run_desktop(arg: Option<String>) -> eframe::Result<()> {
-    let start = arg.map(std::path::PathBuf::from);
-    let options = eframe::NativeOptions {
-        viewport: eframe::egui::ViewportBuilder::default().with_inner_size([480.0, 800.0]),
-        ..Default::default()
-    };
-    eframe::run_native(
-        "Visor DOCX",
-        options,
-        Box::new(move |cc| Ok(Box::new(ui::ViewerApp::new(cc, (), start.clone())))),
-    )
-}
+#[cfg(target_os = "android")]
+mod platform;
+#[cfg(target_os = "android")]
+mod ui;
 
 #[cfg(target_os = "android")]
 #[no_mangle]
@@ -31,9 +23,9 @@ fn android_main(app: android_activity::AndroidApp) {
         ..Default::default()
     };
     let _ = eframe::run_native(
-        "Visor DOCX",
+        "DOCX Viewer",
         options,
-        Box::new(move |cc| Ok(Box::new(ui::ViewerApp::new(cc, app.clone(), None)))),
+        Box::new(move |cc| Ok(Box::new(ui::ViewerApp::new(cc, app.clone())))),
     );
 }
 
