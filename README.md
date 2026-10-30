@@ -173,15 +173,4 @@ Released under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## Changelog
 
-### v2
-- **Tables** now render as real tables: shared borders, column widths taken from the document
-  (`w:tblGrid`), merged cells (`gridSpan` / `number-columns-spanned`) and equal row heights. The
-  stretched "D a t o s" text inside narrow cells is fixed (egui was justifying the text).
-- **Status bar overlap** fixed: the top bar and the file browser now leave room for the system
-  status bar (height queried through JNI).
-- Renamed to **OxiDoc Viewer** (`dev.oxidoc.viewer`, `liboxidoc_viewer.so`) and the in-app title
-  no longer says "Document Viewer".
-- New launcher icon (adaptive + legacy PNGs in `res/`, 512 px copy in `assets/icon.png`).
-- Extra space at the bottom of lists/documents so the last items are not hidden by the navigation bar.
-
-> After pulling this version run `cargo fmt` once, because CI runs `cargo fmt --check`.
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
