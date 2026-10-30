@@ -61,11 +61,17 @@ jobs:
         run: |
           cargo apk build --lib --release --target aarch64-linux-android
           cp target/release/apk/OxiDocViewer.apk "${{ github.workspace }}/OxiDocViewer-arm64-release.apk"
+        env:
+          CARGO_APK_RELEASE_KEYSTORE: /home/runner/release.keystore
+          CARGO_APK_RELEASE_KEYSTORE_PASSWORD: oxidoc
 
       - name: Build armv7 release APK
         run: |
           cargo apk build --lib --release --target armv7-linux-androideabi
           cp target/release/apk/OxiDocViewer.apk "${{ github.workspace }}/OxiDocViewer-armeabi-v7a-release.apk"
+        env:
+          CARGO_APK_RELEASE_KEYSTORE: /home/runner/release.keystore
+          CARGO_APK_RELEASE_KEYSTORE_PASSWORD: oxidoc
 
       - name: Upload APKs to GitHub Release
         uses: softprops/action-gh-release@v2
