@@ -46,6 +46,9 @@ jobs:
           echo "ANDROID_NDK_HOME=/home/runner/android-sdk/ndk/27.2.12479018" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=/home/runner/android-sdk/ndk/27.2.12479018" >> "$GITHUB_ENV"
 
+      - name: Install cargo-apk
+        run: cargo install --locked cargo-apk
+
       - name: Generate release keystore
         run: |
           keytool -genkeypair -v -keystore /home/runner/release.keystore \
