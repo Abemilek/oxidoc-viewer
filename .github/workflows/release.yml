@@ -40,7 +40,7 @@ jobs:
           export ANDROID_HOME=/home/runner/android-sdk
           export ANDROID_SDK_ROOT=/home/runner/android-sdk
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager --install "ndk;27.2.12479018" > /dev/null 2>&1 || true
+          sdkmanager --install "ndk;27.2.12479018" "build-tools;34.0.0" "platforms;android-34" > /dev/null 2>&1 || true
           echo "ANDROID_HOME=/home/runner/android-sdk" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=/home/runner/android-sdk" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=/home/runner/android-sdk/ndk/27.2.12479018" >> "$GITHUB_ENV"
