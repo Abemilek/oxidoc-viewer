@@ -30,13 +30,19 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android NDK
+      - name: Set up Android SDK and NDK
         run: |
+          mkdir -p /home/runner/android-sdk/cmdline-tools
+          curl -sSL -o /tmp/cmdline-tools.zip \
+            https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q /tmp/cmdline-tools.zip -d /tmp/cmdline-tools
+          mv /tmp/cmdline-tools/cmdline-tools /home/runner/android-sdk/cmdline-tools/latest
+          export ANDROID_HOME=/home/runner/android-sdk
+          export ANDROID_SDK_ROOT=/home/runner/android-sdk
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
           sdkmanager --install "ndk;27.2.12479018" > /dev/null 2>&1 || true
+          echo "ANDROID_HOME=/home/runner/android-sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/home/runner/android-sdk" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=/home/runner/android-sdk/ndk/27.2.12479018" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=/home/runner/android-sdk/ndk/27.2.12479018" >> "$GITHUB_ENV"
 
