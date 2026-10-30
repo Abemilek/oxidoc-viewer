@@ -1,13 +1,13 @@
 [package]
-name = "oxifolio"
+name = "oxidoc-viewer"
 version = "0.1.0"
 edition = "2021"
 description = "A lightweight, native document viewer for Android, written entirely in Rust with egui, for Word, OpenDocument and plain-text files"
 license = "MIT"
 
 [lib]
-name = "oxifolio"
-# cdylib => liboxifolio.so loaded by NativeActivity on Android
+name = "oxidoc_viewer"
+# cdylib => liboxidoc_viewer.so loaded by NativeActivity on Android
 # lib    => host-side parser tests
 crate-type = ["cdylib", "lib"]
 
@@ -36,16 +36,19 @@ strip = true
 
 # ---------- APK packaging with cargo-apk ----------
 [package.metadata.android]
-package = "dev.oxifolio.rs"
-apk_name = "Oxifolio"
+package = "dev.oxidoc.viewer"
+apk_name = "OxiDocViewer"
 build_targets = ["aarch64-linux-android"]
+# Icon resources (adaptive icon + legacy PNGs)
+resources = "res"
 
 [package.metadata.android.sdk]
 min_sdk_version = 30
 target_sdk_version = 34
 
 [package.metadata.android.application]
-label = "Oxifolio"
+label = "OxiDoc Viewer"
+icon = "@mipmap/ic_launcher"
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.MANAGE_EXTERNAL_STORAGE"

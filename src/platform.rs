@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 pub type AppHandle = android_activity::AndroidApp;
 
-const PACKAGE: &str = "dev.oxifolio.rs";
+const PACKAGE: &str = "dev.oxidoc.viewer";
 
 pub fn quick_dirs(h: &AppHandle) -> Vec<(String, PathBuf)> {
     let mut v = vec![
@@ -125,4 +125,54 @@ pub fn request_access(h: &AppHandle) {
         }
         Some(())
     })();
+}
+
+/// Height of the system status bar in physical pixels (0.0 if it cannot be queried).
+/// The window is drawn edge-to-edge, so the UI must leave this space free at the top.
+pub fn status_bar_height_px(h: &AppHandle) -> f32 {
+    use jni::objects::{JObject, JValue};
+    use jni::JavaVM;
+
+    let r = (|| -> Option<f32> {
+        let vm = unsafe { JavaVM::from_raw(h.vm_as_ptr() as *mut jni::sys::JavaVM) }.ok()?;
+        let mut env = vm.attach_current_thread().ok()?;
+        let activity = unsafe { JObject::from_raw(h.activity_as_ptr() as jni::sys::jobject) };
+        let res = env
+            .call_method(
+                &activity,
+                "getResources",
+                "()Landroid/content/res/Resources;",
+                &[],
+            )
+            .ok()?
+            .l()
+            .ok()?;
+        let name: JObject = env.new_string("status_bar_height").ok()?.into();
+        let kind: JObject = env.new_string("dimen").ok()?.into();
+        let pkg: JObject = env.new_string("android").ok()?.into();
+        let id = env
+            .call_method(
+                &res,
+                "getIdentifier",
+                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I",
+                &[
+                    JValue::Object(&name),
+                    JValue::Object(&kind),
+                    JValue::Object(&pkg),
+                ],
+            )
+            .ok()?
+            .i()
+            .ok()?;
+        if id == 0 {
+            return None;
+        }
+        let px = env
+            .call_method(&res, "getDimensionPixelSize", "(I)I", &[JValue::Int(id)])
+            .ok()?
+            .i()
+            .ok()?;
+        Some(px as f32)
+    })();
+    r.unwrap_or(0.0)
 }

@@ -43,11 +43,15 @@ pub struct Para {
 #[derive(Clone, Debug)]
 pub struct Cell {
     pub blocks: Vec<Block>,
+    /// Number of grid columns this cell spans (at least 1).
+    pub span: usize,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct Table {
     pub rows: Vec<Vec<Cell>>,
+    /// Grid column widths in points (empty when unknown).
+    pub col_w: Vec<f32>,
 }
 
 #[derive(Clone, Debug)]

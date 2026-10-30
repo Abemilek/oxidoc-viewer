@@ -825,6 +825,7 @@ fn parse_para(cur: &mut Cur, cx: &mut Ctx) -> Para {
 /// Called after the Start of <w:tbl> has been consumed.
 fn parse_table(cur: &mut Cur, cx: &mut Ctx) -> Table {
     let mut rows = Vec::new();
+    let mut col_w: Vec<f32> = Vec::new();
     while let Some(t) = cur.next() {
         match t {
             Tok::End(n) => {
@@ -832,15 +833,18 @@ fn parse_table(cur: &mut Cur, cx: &mut Ctx) -> Table {
                     break;
                 }
             }
-            Tok::Start { name, .. } => {
-                if name == "tr" {
-                    rows.push(parse_row(cur, cx));
+            Tok::Start { name, attrs } => match name.as_str() {
+                "tr" => rows.push(parse_row(cur, cx)),
+                "gridCol" => {
+                    let w = attr(&attrs, "w").and_then(|v| v.parse::<f32>().ok());
+                    col_w.push(w.unwrap_or(0.0) / 20.0);
                 }
-            }
+                _ => {}
+            },
             _ => {}
         }
     }
-    Table { rows }
+    Table { rows, col_w }
 }
 
 fn parse_row(cur: &mut Cur, cx: &mut Ctx) -> Vec<Cell> {
@@ -865,6 +869,7 @@ fn parse_row(cur: &mut Cur, cx: &mut Ctx) -> Vec<Cell> {
 
 fn parse_cell(cur: &mut Cur, cx: &mut Ctx) -> Cell {
     let mut blocks = Vec::new();
+    let mut span = 1usize;
     while let Some(t) = cur.next() {
         match t {
             Tok::End(n) => {
@@ -872,15 +877,19 @@ fn parse_cell(cur: &mut Cur, cx: &mut Ctx) -> Cell {
                     break;
                 }
             }
-            Tok::Start { name, .. } => match name.as_str() {
+            Tok::Start { name, attrs } => match name.as_str() {
                 "p" => blocks.push(Block::Para(parse_para(cur, cx))),
                 "tbl" => blocks.push(Block::Table(parse_table(cur, cx))),
+                "gridSpan" => {
+                    let s = attr(&attrs, "val").and_then(|v| v.parse::<usize>().ok());
+                    span = s.unwrap_or(1).max(1);
+                }
                 _ => {}
             },
             _ => {}
         }
     }
-    Cell { blocks }
+    Cell { blocks, span }
 }
 
 // ---------------------------------------------------------------- entrypoint

@@ -436,10 +436,16 @@ fn parse_table(cur: &mut Cur, cx: &mut Ctx) -> Table {
                                     break;
                                 }
                             }
-                            Tok::Start { name: n2, .. } => {
+                            Tok::Start {
+                                name: n2,
+                                attrs: a2,
+                            } => {
                                 if n2 == "table-cell" {
+                                    let s = attr(&a2, "number-columns-spanned")
+                                        .and_then(|v| v.parse::<usize>().ok());
                                     cells.push(Cell {
                                         blocks: parse_cell_blocks(cur, cx),
+                                        span: s.unwrap_or(1).max(1),
                                     });
                                 }
                             }
@@ -452,7 +458,10 @@ fn parse_table(cur: &mut Cur, cx: &mut Ctx) -> Table {
             _ => {}
         }
     }
-    Table { rows }
+    Table {
+        rows,
+        col_w: Vec::new(),
+    }
 }
 
 pub fn parse(bytes: &[u8]) -> Result<Document, String> {

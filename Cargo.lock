@@ -1500,7 +1500,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "oxifolio"
+name = "oxidoc-viewer"
 version = "0.1.0"
 dependencies = [
  "android-activity",

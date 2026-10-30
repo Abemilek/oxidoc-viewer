@@ -40,6 +40,8 @@ pub struct ViewerApp {
     has_bold: bool,
     access_ok: bool,
     next_check: f64,
+    /// Status bar height in physical pixels (the window is edge-to-edge).
+    top_inset_px: f32,
 }
 
 /// Looks for a system bold font under `/system/fonts`.
@@ -88,6 +90,7 @@ impl ViewerApp {
             .map(|q| q.1.clone())
             .unwrap_or_else(|| PathBuf::from("/"));
         let access_ok = platform::has_access(&handle);
+        let top_inset_px = platform::status_bar_height_px(&handle);
         let mut app = ViewerApp {
             handle,
             dir,
@@ -100,6 +103,7 @@ impl ViewerApp {
             has_bold,
             access_ok,
             next_check: 0.0,
+            top_inset_px,
         };
         app.refresh();
         app
@@ -164,10 +168,11 @@ impl ViewerApp {
         let mut up = false;
         let mut ask = false;
         let mut recheck = false;
+        let inset = self.top_inset_px / ctx.pixels_per_point();
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.add_space(8.0);
-            ui.heading("Document Viewer");
+            ui.add_space(8.0 + inset);
+            ui.heading("OxiDoc Viewer");
             ui.label(egui::RichText::new(self.dir.display().to_string()).small());
             ui.add_space(4.0);
             ui.horizontal_wrapped(|ui| {
@@ -220,6 +225,8 @@ impl ViewerApp {
                     if self.entries.is_empty() && self.dir_error.is_none() {
                         ui.label("(empty folder or no supported documents)");
                     }
+                    // Keep the last entries reachable above the navigation bar.
+                    ui.add_space(64.0);
                 });
         });
 
@@ -254,9 +261,10 @@ impl ViewerApp {
             .map(|o| o.name.clone())
             .unwrap_or_default();
         let zoom_now = self.zoom;
+        let inset = self.top_inset_px / ctx.pixels_per_point();
 
         egui::TopBottomPanel::top("bar").show(ctx, |ui| {
-            ui.add_space(6.0);
+            ui.add_space(6.0 + inset);
             ui.horizontal(|ui| {
                 if ui.button("◀ Back").clicked() {
                     close = true;
@@ -333,6 +341,8 @@ impl ViewerApp {
                                 y += hh + sp;
                             }
                         }
+                        // Keep the end of the document reachable above the navigation bar.
+                        ui.add_space(64.0);
                     });
             }
         });
@@ -406,23 +416,79 @@ fn render_block(ui: &mut egui::Ui, b: &Block, rc: &RCtx) {
 }
 
 fn render_table(ui: &mut egui::Ui, t: &Table, rc: &RCtx) {
-    for row in &t.rows {
-        let n = row.len();
-        if n == 0 {
-            continue;
-        }
-        ui.columns(n, |cols| {
-            for (i, cell) in row.iter().enumerate() {
-                let col = &mut cols[i];
-                egui::Frame::group(col.style()).show(col, |ui| {
-                    ui.set_width(ui.available_width());
-                    for b in &cell.blocks {
-                        render_block(ui, b, rc);
-                    }
-                });
-            }
-        });
+    let ncols = t
+        .rows
+        .iter()
+        .map(|r| r.iter().map(|c| c.span.max(1)).sum::<usize>())
+        .max()
+        .unwrap_or(0);
+    if ncols == 0 {
+        return;
     }
+    let total_w = ui.available_width();
+    let known = t.col_w.len() == ncols && t.col_w.iter().all(|w| *w > 0.0);
+    let mut grid: Vec<f32> = if known {
+        t.col_w.clone()
+    } else {
+        vec![1.0; ncols]
+    };
+    let sum: f32 = grid.iter().sum();
+    for w in grid.iter_mut() {
+        *w = *w / sum * total_w;
+    }
+    let pad = 4.0 * rc.scale.min(2.0);
+    let stroke = Stroke::new(1.0_f32, Color32::from_gray(140));
+
+    ui.scope(|ui| {
+        ui.spacing_mut().item_spacing.y = 0.0;
+        for row in &t.rows {
+            if row.is_empty() {
+                continue;
+            }
+            let origin = ui.available_rect_before_wrap().min;
+            let mut x = 0.0f32;
+            let mut col = 0usize;
+            let mut geo: Vec<(f32, f32)> = Vec::new();
+            let mut max_h = 0.0f32;
+            for cell in row {
+                if col >= ncols {
+                    break;
+                }
+                let end = (col + cell.span.max(1)).min(ncols);
+                let w: f32 = grid[col..end].iter().sum();
+                // Each cell is drawn into its own child Ui with an exact width, so text wraps
+                // inside the cell. A plain left-aligned layout avoids egui's justified text.
+                let inner = egui::Rect::from_min_size(
+                    origin + vec2(x + pad, pad),
+                    vec2((w - 2.0 * pad).max(8.0), 100_000.0),
+                );
+                let mut child = ui.new_child(
+                    egui::UiBuilder::new()
+                        .max_rect(inner)
+                        .layout(egui::Layout::top_down(Align::Min)),
+                );
+                child.spacing_mut().item_spacing.y = (3.0 * rc.scale).min(8.0);
+                for b in &cell.blocks {
+                    render_block(&mut child, b, rc);
+                }
+                max_h = max_h.max(child.min_rect().height());
+                geo.push((x, w));
+                x += w;
+                col = end;
+            }
+            let row_h = max_h + 2.0 * pad;
+            for (cell_x, w) in geo {
+                let r = egui::Rect::from_min_size(origin + vec2(cell_x, 0.0), vec2(w, row_h));
+                let p = ui.painter();
+                p.line_segment([r.left_top(), r.right_top()], stroke);
+                p.line_segment([r.left_bottom(), r.right_bottom()], stroke);
+                p.line_segment([r.left_top(), r.left_bottom()], stroke);
+                p.line_segment([r.right_top(), r.right_bottom()], stroke);
+            }
+            let row_rect = egui::Rect::from_min_size(origin, vec2(total_w, row_h));
+            ui.allocate_rect(row_rect, egui::Sense::hover());
+        }
+    });
 }
 
 fn render_para(ui: &mut egui::Ui, p: &Para, rc: &RCtx) {

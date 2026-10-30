@@ -1,4 +1,4 @@
-# Oxifolio
+# OxiDoc Viewer
 
 [![Rust](https://img.shields.io/badge/rust-stable-orange?logo=rust)](https://www.rust-lang.org)
 [![Platform](https://img.shields.io/badge/platform-Android-blue)](#requirements)
@@ -6,14 +6,14 @@
 
 A lightweight, native document viewer for Android, written entirely in Rust.
 
-Oxifolio opens Microsoft Word, OpenDocument, and plain-text files without requiring Microsoft
+OxiDoc Viewer opens Microsoft Word, OpenDocument, and plain-text files without requiring Microsoft
 Office, LibreOffice, Java, or Kotlin. The DOCX and ODT parsers are implemented from scratch on top
 of a small XML tokenizer and the `zip` crate, and the interface is rendered with
 [egui](https://github.com/emilk/egui).
 
-## Why Oxifolio?
+## Why OxiDoc Viewer?
 
-- **Native Android app** — runs as a `NativeActivity` that loads `liboxifolio.so`; there is no
+- **Native Android app** — runs as a `NativeActivity` that loads `liboxidoc_viewer.so`; there is no
   JVM or Kotlin UI layer.
 - **No office suite required** — documents are parsed and rendered by the application itself.
 - **Offline and private** — documents are processed locally and are never uploaded.
@@ -87,27 +87,27 @@ cargo apk run --lib
 For a signed release build, create a keystore and provide its credentials:
 
 ```bash
-keytool -genkeypair -v -keystore "$HOME/oxifolio-release.keystore" \
-        -alias oxifolio -keyalg RSA -keysize 2048 -validity 10000
+keytool -genkeypair -v -keystore "$HOME/oxidoc-viewer-release.keystore" \
+        -alias oxidoc -keyalg RSA -keysize 2048 -validity 10000
 
-export CARGO_APK_RELEASE_KEYSTORE="$HOME/oxifolio-release.keystore"
-export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="oxifolio"
+export CARGO_APK_RELEASE_KEYSTORE="$HOME/oxidoc-viewer-release.keystore"
+export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="oxidoc"
 ./build-android.sh release
 ```
 
-This produces signed APKs in `target/release/apk/` (for example `Oxifolio.apk`).
+This produces signed APKs in `target/release/apk/` (for example `OxiDocViewer.apk`).
 
 The release APKs for the current setup are kept in the `apks/` folder of the repository:
 
-- `apks/Oxifolio-arm64-release.apk` — for new phones (`arm64-v8a`).
-- `apks/Oxifolio-armeabi-v7a-release.apk` — for old phones (`armeabi-v7a`).
+- `apks/OxiDocViewer-arm64-release.apk` — for new phones (`arm64-v8a`).
+- `apks/OxiDocViewer-armeabi-v7a-release.apk` — for old phones (`armeabi-v7a`).
 
 > `cargo-apk` is used for `NativeActivity` packaging. If it is unavailable in your environment,
 > `xbuild` can be used as an alternative (`x build --platform android --arch arm64`).
 
 ## Usage
 
-1. Launch **Oxifolio**.
+1. Launch **OxiDoc Viewer**.
 2. Grant **All files access** when prompted, then return to the app.
 3. Browse the quick-access folders (*Downloads*, *Documents*, or *Storage*) and tap a document.
 4. Use the **−** and **+** buttons or pinch to zoom, and drag to scroll.
@@ -150,7 +150,7 @@ build-android.sh Android APK build script
 
 - **Black screen on some devices:** switch the renderer from `glow` to `wgpu` in `Cargo.toml` and
   add `renderer: eframe::Renderer::Wgpu` to `NativeOptions` in `src/lib.rs`.
-- **Storage permission not granted:** open Android Settings → Apps → Oxifolio → Special access →
+- **Storage permission not granted:** open Android Settings → Apps → OxiDoc Viewer → Special access →
   All files access, enable it, and return to the app.
 
 ## Contributing
@@ -170,3 +170,18 @@ Commit messages follow the [Conventional Commits](https://www.conventionalcommit
 ## License
 
 Released under the MIT License. See [LICENSE](LICENSE) for details.
+
+## Changelog
+
+### v2
+- **Tables** now render as real tables: shared borders, column widths taken from the document
+  (`w:tblGrid`), merged cells (`gridSpan` / `number-columns-spanned`) and equal row heights. The
+  stretched "D a t o s" text inside narrow cells is fixed (egui was justifying the text).
+- **Status bar overlap** fixed: the top bar and the file browser now leave room for the system
+  status bar (height queried through JNI).
+- Renamed to **OxiDoc Viewer** (`dev.oxidoc.viewer`, `liboxidoc_viewer.so`) and the in-app title
+  no longer says "Document Viewer".
+- New launcher icon (adaptive + legacy PNGs in `res/`, 512 px copy in `assets/icon.png`).
+- Extra space at the bottom of lists/documents so the last items are not hidden by the navigation bar.
+
+> After pulling this version run `cargo fmt` once, because CI runs `cargo fmt --check`.
