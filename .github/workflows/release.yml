@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-apks:
+    name: Build release APKs
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+          targets: aarch64-linux-android
+
+      - name: Cache cargo build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install "ndk;27.2.12479018" > /dev/null 2>&1 || true
+          echo "ANDROID_NDK_HOME=/home/runner/android-sdk/ndk/27.2.12479018" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=/home/runner/android-sdk/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
+      - name: Generate release keystore
+        run: |
+          keytool -genkeypair -v -keystore /home/runner/release.keystore \
+            -alias oxidoc -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass oxidoc -keypass oxidoc \
+            -dname "CN=OxiDoc Viewer, OU=Dev, O=OxiDoc Viewer, L=City, ST=State, C=ES" > /dev/null
+
+      - name: Build arm64 release APK
+        run: |
+          cargo apk build --lib --release --target aarch64-linux-android
+          cp target/release/apk/OxiDocViewer.apk "${{ github.workspace }}/OxiDocViewer-arm64-release.apk"
+
+      - name: Build armv7 release APK
+        run: |
+          cargo apk build --lib --release --target armv7-linux-androideabi
+          cp target/release/apk/OxiDocViewer.apk "${{ github.workspace }}/OxiDocViewer-armeabi-v7a-release.apk"
+
+      - name: Upload APKs to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            OxiDocViewer-arm64-release.apk
+            OxiDocViewer-armeabi-v7a-release.apk
+          fail_on_unmatched_files: true
