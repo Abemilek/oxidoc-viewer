@@ -38,7 +38,8 @@ of a small XML tokenizer and the `zip` crate, and the interface is rendered with
 - Tables, including nested tables.
 - Embedded images with automatic scaling.
 - File browser with quick-access folders.
-- Zoom with on-screen buttons or pinch gestures.
+- Pinch to zoom; documents are shown as separate pages with a page indicator.
+- "Open with" support from file managers and other apps.
 - Touch-friendly scrolling with virtualized rendering for large documents.
 
 ## Requirements
@@ -115,7 +116,10 @@ The release APKs for the current setup are kept in the `apks/` folder of the rep
 1. Launch **OxiDoc Viewer**.
 2. Grant **All files access** when prompted, then return to the app.
 3. Browse the quick-access folders (*Downloads*, *Documents*, or *Storage*) and tap a document.
-4. Use the **−** and **+** buttons or pinch to zoom, and drag to scroll.
+4. Pinch to zoom and drag to scroll. Tap the screen to show the floating bar (Back, file name,
+   zoom %).
+5. To open files straight from a file manager, choose **OxiDoc Viewer** in the "Open with"
+   dialog (Just once / Always).
 
 You can copy files to the device with `adb`:
 

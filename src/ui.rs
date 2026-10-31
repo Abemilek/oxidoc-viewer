@@ -1,6 +1,7 @@
 //! UI (egui): file browser and document viewer with virtualized scrolling.
 use crate::doc::*;
 use crate::load;
+use crate::pages;
 use crate::platform::{self, AppHandle};
 use eframe::egui::{
     self, text::LayoutJob, vec2, Align, Color32, FontFamily, FontId, Stroke, TextFormat,
@@ -23,7 +24,10 @@ struct Entry {
 struct Open {
     doc: Document,
     name: String,
+    /// Index of the first block of every page.
+    pages: Vec<usize>,
     textures: RefCell<HashMap<String, Option<TextureHandle>>>,
+    /// Measured height of every page (0.0 = not measured yet).
     heights: Vec<f32>,
     layout_key: (i32, i32),
 }
@@ -42,6 +46,32 @@ pub struct ViewerApp {
     next_check: f64,
     /// Status bar height in physical pixels (the window is edge-to-edge).
     top_inset_px: f32,
+    /// Floating top bar of the viewer (shown with a tap).
+    show_bar: bool,
+    bar_time: f64,
+    bar_rect: Option<egui::Rect>,
+    /// Scroll tracking for the page indicator.
+    last_off: f32,
+    last_scroll: f64,
+}
+
+/// Pure-black ("AMOLED") dark theme for the app chrome. Document pages stay white.
+fn amoled_visuals() -> egui::Visuals {
+    let g = Color32::from_gray;
+    let mut v = egui::Visuals::dark();
+    v.panel_fill = Color32::BLACK;
+    v.window_fill = Color32::BLACK;
+    v.extreme_bg_color = Color32::BLACK;
+    v.faint_bg_color = g(10);
+    v.widgets.noninteractive.bg_fill = Color32::BLACK;
+    v.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, g(48));
+    v.widgets.inactive.bg_fill = g(26);
+    v.widgets.inactive.weak_bg_fill = g(26);
+    v.widgets.hovered.bg_fill = g(44);
+    v.widgets.hovered.weak_bg_fill = g(44);
+    v.widgets.active.bg_fill = g(64);
+    v.widgets.active.weak_bg_fill = g(64);
+    v
 }
 
 /// Looks for a system bold font under `/system/fonts`.
@@ -77,8 +107,10 @@ fn setup_fonts(ctx: &egui::Context) -> bool {
 impl ViewerApp {
     pub fn new(cc: &eframe::CreationContext<'_>, handle: AppHandle) -> Self {
         let ctx = &cc.egui_ctx;
-        ctx.set_visuals(egui::Visuals::dark());
-        ctx.style_mut(|s| {
+        // Always dark, whatever the system theme is.
+        ctx.set_theme(egui::ThemePreference::Dark);
+        ctx.set_visuals_of(egui::Theme::Dark, amoled_visuals());
+        ctx.style_mut_of(egui::Theme::Dark, |s| {
             s.spacing.button_padding = vec2(12.0, 10.0);
             s.spacing.item_spacing = vec2(8.0, 8.0);
             s.interaction.selectable_labels = false; // so dragging scrolls on touch screens
@@ -104,8 +136,20 @@ impl ViewerApp {
             access_ok,
             next_check: 0.0,
             top_inset_px,
+            show_bar: false,
+            bar_time: 0.0,
+            bar_rect: None,
+            last_off: 0.0,
+            last_scroll: -10.0,
         };
         app.refresh();
+        // Started from "Open with" in a file manager or another app?
+        if let Some((name, bytes)) = platform::launch_document(&app.handle) {
+            match load::load_bytes(&name, &bytes) {
+                Ok(doc) => app.show_document(doc),
+                Err(e) => app.message = Some(e),
+            }
+        }
         app
     }
 
@@ -142,23 +186,48 @@ impl ViewerApp {
 
     fn open_file(&mut self, path: &Path) {
         match load::load(path) {
-            Ok(doc) => {
-                let n = doc.blocks.len();
-                let name = if doc.title.is_empty() {
-                    path.display().to_string()
-                } else {
-                    doc.title.clone()
-                };
-                self.open = Some(Open {
-                    doc,
-                    name,
-                    textures: RefCell::new(HashMap::new()),
-                    heights: vec![0.0; n],
-                    layout_key: (0, 0),
-                });
-                self.message = None;
-            }
+            Ok(doc) => self.show_document(doc),
             Err(e) => self.message = Some(e),
+        }
+    }
+
+    fn show_document(&mut self, doc: Document) {
+        let starts = pages::split(&doc);
+        let n = starts.len();
+        let name = if doc.title.is_empty() {
+            "document".to_string()
+        } else {
+            doc.title.clone()
+        };
+        self.open = Some(Open {
+            doc,
+            name,
+            pages: starts,
+            textures: RefCell::new(HashMap::new()),
+            heights: vec![0.0; n],
+            layout_key: (0, 0),
+        });
+        self.message = None;
+        self.show_bar = false;
+        self.last_off = 0.0;
+        self.last_scroll = -10.0;
+    }
+
+    /// Back gesture / key: viewer -> browser, subfolder -> parent folder, root -> close the app.
+    fn go_back(&mut self) {
+        if self.open.is_some() {
+            self.open = None;
+            return;
+        }
+        let root = Path::new("/storage/emulated/0");
+        let parent = self.dir.parent().map(|p| p.to_path_buf());
+        match parent {
+            Some(p) if self.dir.as_path() != root => {
+                self.dir = p;
+                self.message = None;
+                self.refresh();
+            }
+            _ => platform::finish_activity(&self.handle),
         }
     }
 
@@ -253,47 +322,60 @@ impl ViewerApp {
     }
 
     fn viewer_ui(&mut self, ctx: &egui::Context) {
-        let mut close = false;
-        let mut dz = ctx.input(|i| i.zoom_delta());
+        let now = ctx.input(|i| i.time);
+        let inset = self.top_inset_px / ctx.pixels_per_point();
         let name = self
             .open
             .as_ref()
             .map(|o| o.name.clone())
             .unwrap_or_default();
-        let zoom_now = self.zoom;
-        let inset = self.top_inset_px / ctx.pixels_per_point();
+        let mut close = false;
+        let mut reset_zoom = false;
 
-        egui::TopBottomPanel::top("bar").show(ctx, |ui| {
-            ui.add_space(6.0 + inset);
-            ui.horizontal(|ui| {
-                if ui.button("◀ Back").clicked() {
-                    close = true;
-                }
-                if ui.button("−").clicked() {
-                    dz /= 1.15;
-                }
-                if ui.button("+").clicked() {
-                    dz *= 1.15;
-                }
-                ui.label(format!("{}%", (zoom_now * 100.0).round() as i32));
-            });
-            ui.label(egui::RichText::new(&name).small());
-            ui.add_space(4.0);
-        });
-
+        // Pinch to zoom.
+        let dz = ctx.input(|i| i.zoom_delta());
         if (dz - 1.0).abs() > 0.001 {
             self.zoom = (self.zoom * dz).clamp(0.4, 4.0);
         }
+
+        // A tap anywhere (outside the bar) shows or hides the floating bar.
+        if ctx.input(|i| i.pointer.primary_clicked()) {
+            let pos = ctx.input(|i| i.pointer.interact_pos());
+            let on_bar = match (self.show_bar, self.bar_rect, pos) {
+                (true, Some(r), Some(p)) => r.contains(p),
+                _ => false,
+            };
+            if !on_bar {
+                self.show_bar = !self.show_bar;
+                self.bar_time = now;
+            }
+        }
+        if self.show_bar && now - self.bar_time > 4.0 {
+            self.show_bar = false;
+        }
+
+        // Black strip under the status bar so its icons never sit on top of a white page.
+        if inset > 0.5 {
+            egui::TopBottomPanel::top("status_strip")
+                .frame(egui::Frame::default().fill(Color32::BLACK))
+                .exact_height(inset)
+                .show(ctx, |_ui| {});
+        }
+
         let zoom = self.zoom;
         let has_bold = self.has_bold;
+        let mut cur_page = 1usize;
+        let mut total_pages = 1usize;
+        let mut offset_y = 0.0f32;
 
         let frame = egui::Frame::default()
-            .fill(Color32::WHITE)
-            .inner_margin(10.0);
+            .fill(Color32::BLACK)
+            .inner_margin(6.0);
         egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
             if let Some(o) = &mut self.open {
                 let Open {
                     doc,
+                    pages,
                     textures,
                     heights,
                     layout_key,
@@ -301,52 +383,134 @@ impl ViewerApp {
                 } = o;
                 let w = ui.available_width();
                 let key = (w as i32, (zoom * 100.0) as i32);
-                if *layout_key != key || heights.len() != doc.blocks.len() {
+                if *layout_key != key || heights.len() != pages.len() {
                     heights.clear();
-                    heights.resize(doc.blocks.len(), 0.0);
+                    heights.resize(pages.len(), 0.0);
                     *layout_key = key;
                 }
+                total_pages = pages.len();
                 let rc = RCtx {
                     images: &doc.images,
                     textures: &*textures,
                     scale: zoom * PT_SCALE,
                     has_bold,
                 };
-                egui::ScrollArea::vertical()
+                let out = egui::ScrollArea::vertical()
                     .id_salt(("document", name.as_str()))
                     .auto_shrink([false, false])
                     .show_viewport(ui, |ui, viewport| {
-                        ui.spacing_mut().item_spacing.y = (6.0 * zoom).clamp(3.0, 18.0);
+                        ui.spacing_mut().item_spacing.y = 14.0;
                         let sp = ui.spacing().item_spacing.y;
                         let avail = ui.available_width();
-                        let top = viewport.min.y - 800.0;
-                        let bot = viewport.max.y + 800.0;
+                        let top = viewport.min.y - 1200.0;
+                        let bot = viewport.max.y + 1200.0;
+                        let probe = viewport.min.y + viewport.height() * 0.3;
+                        let n_pages = pages.len();
                         let mut y = 0.0f32;
-                        for (i, b) in doc.blocks.iter().enumerate() {
-                            let h = heights[i];
+                        let mut cur = 1usize;
+                        for pi in 0..n_pages {
+                            let start = pages[pi];
+                            let end = pages.get(pi + 1).copied().unwrap_or(doc.blocks.len());
+                            let blocks = &doc.blocks[start..end];
+                            let h = heights[pi];
                             let known = h > 0.0;
                             let render = if known {
                                 y + h >= top && y <= bot
                             } else {
                                 y <= bot
                             };
-                            if render {
-                                let r = ui.scope(|ui| render_block(ui, b, &rc));
-                                let hh = r.response.rect.height().max(0.5);
-                                heights[i] = hh;
-                                y += hh + sp;
+                            let hh = if render {
+                                let r =
+                                    ui.scope(|ui| render_page(ui, blocks, pi + 1, n_pages, &rc));
+                                let m = r.response.rect.height().max(0.5);
+                                heights[pi] = m;
+                                m
                             } else {
-                                let hh = if known { h } else { estimate(b, &rc) };
-                                ui.allocate_space(vec2(avail, hh));
-                                y += hh + sp;
+                                let e = if known { h } else { estimate_page(blocks, &rc) };
+                                ui.allocate_space(vec2(avail, e));
+                                e
+                            };
+                            if y <= probe {
+                                cur = pi + 1;
                             }
+                            y += hh + sp;
                         }
                         // Keep the end of the document reachable above the navigation bar.
                         ui.add_space(64.0);
+                        cur
                     });
+                cur_page = out.inner;
+                offset_y = out.state.offset.y;
             }
         });
 
+        if (offset_y - self.last_off).abs() > 0.5 {
+            self.last_off = offset_y;
+            self.last_scroll = now;
+        }
+
+        // Floating bar: back, document name and zoom (tap the percentage to reset it).
+        if self.show_bar {
+            let zoom_pct = (self.zoom * 100.0).round() as i32;
+            let screen_w = ctx.screen_rect().width();
+            let resp = egui::Area::new(egui::Id::new("viewer_bar"))
+                .anchor(egui::Align2::LEFT_TOP, vec2(0.0, inset))
+                .order(egui::Order::Foreground)
+                .show(ctx, |ui| {
+                    egui::Frame::default()
+                        .fill(Color32::from_rgba_unmultiplied(0, 0, 0, 225))
+                        .inner_margin(8.0)
+                        .show(ui, |ui| {
+                            ui.set_min_width(screen_w - 16.0);
+                            ui.horizontal(|ui| {
+                                if ui.button("◀ Back").clicked() {
+                                    close = true;
+                                }
+                                ui.with_layout(egui::Layout::right_to_left(Align::Center), |ui| {
+                                    if ui.button(format!("{zoom_pct}%")).clicked() {
+                                        reset_zoom = true;
+                                        self.bar_time = now;
+                                    }
+                                    ui.add(
+                                        egui::Label::new(egui::RichText::new(&name).small())
+                                            .truncate(),
+                                    );
+                                });
+                            });
+                        });
+                });
+            self.bar_rect = Some(resp.response.rect);
+            ctx.request_repaint_after(std::time::Duration::from_millis(4100));
+        } else {
+            self.bar_rect = None;
+        }
+
+        // Page indicator: appears while scrolling (or with the bar), then fades away.
+        let show_chip = self.show_bar || now - self.last_scroll < 1.4;
+        if show_chip && total_pages > 1 {
+            egui::Area::new(egui::Id::new("page_chip"))
+                .anchor(egui::Align2::CENTER_BOTTOM, vec2(0.0, -64.0))
+                .order(egui::Order::Foreground)
+                .interactable(false)
+                .show(ctx, |ui| {
+                    egui::Frame::default()
+                        .fill(Color32::from_rgba_unmultiplied(20, 20, 20, 230))
+                        .inner_margin(8.0)
+                        .show(ui, |ui| {
+                            ui.label(
+                                egui::RichText::new(format!("{cur_page} / {total_pages}"))
+                                    .color(Color32::WHITE),
+                            );
+                        });
+                });
+            if !self.show_bar {
+                ctx.request_repaint_after(std::time::Duration::from_millis(1500));
+            }
+        }
+
+        if reset_zoom {
+            self.zoom = 1.0;
+        }
         if close {
             self.open = None;
         }
@@ -366,6 +530,18 @@ impl eframe::App for ViewerApp {
         }
         if !self.access_ok {
             ctx.request_repaint_after(std::time::Duration::from_millis(1500));
+        }
+        let back = ctx.input(|i| {
+            i.events.iter().any(|e| {
+                matches!(
+                    e,
+                    egui::Event::Key { pressed: true, key, .. }
+                        if *key == egui::Key::Escape || format!("{key:?}") == "BrowserBack"
+                )
+            })
+        });
+        if back {
+            self.go_back();
         }
         if self.open.is_some() {
             self.viewer_ui(ctx);
@@ -406,6 +582,32 @@ fn estimate(b: &Block, rc: &RCtx) -> f32 {
         }
         Block::Table(t) => t.rows.len().max(1) as f32 * 50.0 * rc.scale,
     }
+}
+
+fn estimate_page(blocks: &[Block], rc: &RCtx) -> f32 {
+    blocks.iter().map(|b| estimate(b, rc)).sum::<f32>() + 60.0
+}
+
+/// One document page: a white sheet with its blocks and a small "n / total" caption below.
+fn render_page(ui: &mut egui::Ui, blocks: &[Block], n: usize, total: usize, rc: &RCtx) {
+    let zoom = rc.scale / PT_SCALE;
+    egui::Frame::default()
+        .fill(Color32::WHITE)
+        .inner_margin(16.0)
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.spacing_mut().item_spacing.y = (6.0 * zoom).clamp(3.0, 18.0);
+            for b in blocks {
+                render_block(ui, b, rc);
+            }
+        });
+    ui.with_layout(egui::Layout::top_down(Align::Center), |ui| {
+        ui.label(
+            egui::RichText::new(format!("{n} / {total}"))
+                .small()
+                .color(Color32::from_gray(140)),
+        );
+    });
 }
 
 fn render_block(ui: &mut egui::Ui, b: &Block, rc: &RCtx) {
@@ -653,7 +855,7 @@ fn draw_image(ui: &mut egui::Ui, rc: &RCtx, key: &str, w_pt: f32, h_pt: f32) {
             ui.add(egui::Image::new((tex.id(), vec2(w, h))));
         }
         None => {
-            ui.label("[unsupported image]");
+            ui.label(egui::RichText::new("[unsupported image]").color(TEXT));
         }
     }
 }

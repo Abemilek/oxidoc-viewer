@@ -43,7 +43,13 @@ pub fn load(path: &Path) -> Result<Document, String> {
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let ext = ext_of(&name);
+    load_bytes(&name, &bytes)
+}
+
+/// Parses a document already in memory (used for files received from other apps).
+/// `name` is only used for the title and to recognise `.md` files.
+pub fn load_bytes(name: &str, bytes: &[u8]) -> Result<Document, String> {
+    let ext = ext_of(name);
 
     if bytes.starts_with(&[0xD0, 0xCF, 0x11, 0xE0]) {
         return Err("This is a legacy binary .doc file (OLE). It is not supported yet: save it as .docx (for example, with LibreOffice or Word) and open it again.".into());
@@ -53,27 +59,27 @@ pub fn load(path: &Path) -> Result<Document, String> {
     }
 
     let mut doc = if bytes.starts_with(b"PK") {
-        let mut z = zip::ZipArchive::new(Cursor::new(&bytes[..]))
+        let mut z = zip::ZipArchive::new(Cursor::new(bytes))
             .map_err(|e| format!("Invalid ZIP/Office file: {e}"))?;
         let is_docx = z.by_name("word/document.xml").is_ok();
         let is_odt = z.by_name("content.xml").is_ok();
         drop(z);
         if is_docx {
-            crate::docx::parse(&bytes)?
+            crate::docx::parse(bytes)?
         } else if is_odt {
-            crate::odt::parse(&bytes)?
+            crate::odt::parse(bytes)?
         } else {
             return Err(
                 "The ZIP does not contain a Word (.docx) or OpenDocument (.odt) document.".into(),
             );
         }
     } else if matches!(ext.as_str(), "txt" | "md" | "log" | "csv")
-        || std::str::from_utf8(&bytes).is_ok()
+        || std::str::from_utf8(bytes).is_ok()
     {
-        crate::text::parse(&bytes, ext == "md")
+        crate::text::parse(bytes, ext == "md")
     } else {
         return Err("Unrecognized format.".into());
     };
-    doc.title = name;
+    doc.title = name.to_string();
     Ok(doc)
 }

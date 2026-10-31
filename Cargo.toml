@@ -49,6 +49,28 @@ target_sdk_version = 34
 [package.metadata.android.application]
 label = "OxiDoc Viewer"
 icon = "@mipmap/ic_launcher"
+# Dark system theme: white status-bar icons and a dark window background, whatever the
+# system theme is (the app itself is always pure black).
+theme = "@android:style/Theme.DeviceDefault.NoActionBar"
+
+[package.metadata.android.application.activity]
+# One instance only: a second NativeActivity cannot run in the same process.
+launch_mode = "singleTask"
+
+# "Open with": offered for Word, OpenDocument and text files from file managers and other apps.
+# Content is read through the ContentResolver, so no storage permission is needed for it.
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.VIEW"]
+categories = ["android.intent.category.DEFAULT"]
+data = [
+    { mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+    { mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.template" },
+    { mime_type = "application/vnd.ms-word.document.macroEnabled.12" },
+    { mime_type = "application/vnd.oasis.opendocument.text" },
+    { mime_type = "application/vnd.oasis.opendocument.text-template" },
+    { mime_type = "text/plain" },
+    { mime_type = "text/markdown" },
+]
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.MANAGE_EXTERNAL_STORAGE"

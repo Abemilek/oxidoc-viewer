@@ -1,5 +1,42 @@
 # Changelog
 
+## v3
+
+### Added
+
+- **Pages.** Documents are shown as separate white pages on a black background, each with an
+  `n / total` caption. Word files use the page breaks stored by Word (`lastRenderedPageBreak`),
+  explicit page breaks and "page break before"; ODT files use their page-break styles and soft
+  page breaks. Files without that information (LibreOffice/Google Docs exports, plain text) are
+  split into pages with an estimate based on the page size.
+- **Open with.** The app is offered in the Android "Open with" dialog (Just once / Always) for
+  `.docx`, `.dotx`, `.docm`, `.odt`, `.ott`, `.txt` and `.md` files coming from file managers, chat
+  apps and other apps. The file is read through the `ContentResolver`, so it works even without the
+  "All files access" permission.
+- **Page indicator.** A small `current / total` chip appears while scrolling.
+- Back gesture: viewer -> file browser -> parent folder -> close the app (when the system
+  delivers it to the app).
+
+### Changed
+
+- **Always pure-black (AMOLED) dark UI** in the file browser and around the pages, independent of
+  the system theme. Pages stay white.
+- **Viewer without a fixed toolbar.** The Back / - / + buttons are gone: zoom is done by pinching,
+  and a tap shows a floating bar (Back, file name, zoom %, tap the % to reset) that hides itself
+  after a few seconds. The whole screen is now used by the document.
+- The status bar is always readable: the app uses a dark system theme (white icons) and keeps a
+  black strip under the status bar.
+- The process now exits when the activity closes, so a later "Open with" always starts cleanly.
+
+### Notes
+
+- If the app is already open in the background, Android hands a new "Open with" file to the running
+  instance, and a pure-Rust `NativeActivity` cannot receive it (`onNewIntent` needs a Java
+  subclass). Close the app first (Back from the file browser) and open the file again.
+- File managers that report `application/octet-stream` for `.docx` files will not list the app;
+  open the file from the app's own browser in that case.
+- Run `cargo fmt` once after pulling this version, because CI runs `cargo fmt --check`.
+
 ## v2 - OxiDoc Viewer
 
 ### Added

@@ -57,6 +57,7 @@ struct PPr {
     ilvl: Option<u8>,
     ind_left: Option<f32>,
     outline: Option<u8>,
+    page_break_before: bool,
 }
 
 impl PPr {
@@ -191,6 +192,7 @@ fn parse_ppr(cur: &mut Cur) -> PPr {
                         .and_then(|v| v.parse::<u8>().ok())
                         .map(|v| v.saturating_add(1));
                 }
+                "pageBreakBefore" => p.page_break_before = on(&attrs),
                 "pPrChange" | "rPr" | "sectPr" => cur.skip(&name),
                 _ => {}
             },
@@ -521,6 +523,7 @@ struct Ctx<'a> {
     counters: HashMap<u32, [Option<u32>; 9]>,
     media: Vec<String>,
     default_pt: f32,
+    rendered_breaks: bool,
 }
 
 impl<'a> Ctx<'a> {
@@ -676,6 +679,13 @@ fn parse_run(cur: &mut Cur, cx: &mut Ctx, base: &RPr, link: bool, out: &mut Vec<
                         text.push('\n');
                     }
                 }
+                "lastRenderedPageBreak" => {
+                    cx.rendered_breaks = true;
+                    if !text.is_empty() {
+                        items.push(Item::Text(std::mem::take(&mut text)));
+                    }
+                    items.push(Item::Page);
+                }
                 "cr" => text.push('\n'),
                 "noBreakHyphen" => text.push('-'),
                 "Fallback" => cur.skip("Fallback"),
@@ -810,6 +820,9 @@ fn parse_para(cur: &mut Cur, cx: &mut Ctx) -> Para {
                 "pPr" => {
                     let ppr = parse_ppr(cur);
                     apply_ppr(&ppr, &mut p, &mut base, cx);
+                    if ppr.page_break_before {
+                        p.break_before = true;
+                    }
                 }
                 "r" => parse_run(cur, cx, &base, link > 0, &mut p.inlines),
                 "hyperlink" => link += 1,
@@ -819,7 +832,39 @@ fn parse_para(cur: &mut Cur, cx: &mut Ctx) -> Para {
             _ => {}
         }
     }
+    classify_breaks(&mut p);
     p
+}
+
+/// Turns page-break markers inside a paragraph into paragraph-level flags.
+fn classify_breaks(p: &mut Para) {
+    let total: usize = p
+        .inlines
+        .iter()
+        .map(|i| match i {
+            Inline::Text(r) => r.text.chars().count(),
+            _ => 0,
+        })
+        .sum();
+    let mut seen = 0usize;
+    let mut has_break = false;
+    for inl in &p.inlines {
+        match inl {
+            Inline::Text(r) => seen += r.text.chars().count(),
+            Inline::PageBreak => {
+                has_break = true;
+                if seen * 10 < total * 4 {
+                    p.break_before = true;
+                } else {
+                    p.break_after = true;
+                }
+            }
+            Inline::Image { .. } => {}
+        }
+    }
+    if has_break {
+        p.inlines.retain(|i| !matches!(i, Inline::PageBreak));
+    }
 }
 
 /// Called after the Start of <w:tbl> has been consumed.
@@ -922,16 +967,32 @@ pub fn parse(bytes: &[u8]) -> Result<Document, String> {
         counters: HashMap::new(),
         media: Vec::new(),
         default_pt,
+        rendered_breaks: false,
     };
 
     let mut cur = Cur::new(&doc_xml);
     let mut blocks: Vec<Block> = Vec::new();
+    let mut page = PageInfo::default();
     while let Some(t) = cur.next() {
-        if let Tok::Start { name, .. } = t {
+        if let Tok::Start { name, attrs } = t {
             match name.as_str() {
                 "p" => blocks.push(Block::Para(parse_para(&mut cur, &mut cx))),
                 "tbl" => blocks.push(Block::Table(parse_table(&mut cur, &mut cx))),
                 "Fallback" => cur.skip("Fallback"),
+                "pgSz" => {
+                    let tw = |k: &str| attr(&attrs, k).and_then(|v| v.parse::<f32>().ok());
+                    if let (Some(w), Some(h)) = (tw("w"), tw("h")) {
+                        page.w_pt = w / 20.0;
+                        page.h_pt = h / 20.0;
+                    }
+                }
+                "pgMar" => {
+                    let tw = |k: &str| attr(&attrs, k).and_then(|v| v.parse::<f32>().ok());
+                    page.margin_l = tw("left").map_or(page.margin_l, |v| v / 20.0);
+                    page.margin_r = tw("right").map_or(page.margin_r, |v| v / 20.0);
+                    page.margin_t = tw("top").map_or(page.margin_t, |v| v / 20.0);
+                    page.margin_b = tw("bottom").map_or(page.margin_b, |v| v / 20.0);
+                }
                 _ => {}
             }
         }
@@ -948,5 +1009,7 @@ pub fn parse(bytes: &[u8]) -> Result<Document, String> {
         blocks,
         images,
         title: String::new(),
+        page,
+        layout_pages: cx.rendered_breaks,
     })
 }

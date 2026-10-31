@@ -7,6 +7,7 @@ mod doc;
 mod docx;
 mod load;
 mod odt;
+mod pages;
 mod text;
 mod xml;
 
@@ -30,4 +31,7 @@ fn android_main(app: android_activity::AndroidApp) {
         options,
         Box::new(move |cc| Ok(Box::new(ui::ViewerApp::new(cc, app.clone())))),
     );
+    // The event loop cannot be created twice in one process, so make sure the next launch (for
+    // example "Open with" from a file manager) starts from a clean process.
+    std::process::exit(0);
 }
