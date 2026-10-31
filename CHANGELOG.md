@@ -4,23 +4,17 @@
 
 ### Added
 
-- **Pages.** Documents are shown as separate white pages on a black background, each with an
-  `n / total` caption. Word files use the page breaks stored by Word (`lastRenderedPageBreak`),
-  explicit page breaks and "page break before"; ODT files use their page-break styles and soft
-  page breaks. Files without that information (LibreOffice/Google Docs exports, plain text) are
-  split into pages with an estimate based on the page size.
 - **Open with.** The app is offered in the Android "Open with" dialog (Just once / Always) for
   `.docx`, `.dotx`, `.docm`, `.odt`, `.ott`, `.txt` and `.md` files coming from file managers, chat
   apps and other apps. The file is read through the `ContentResolver`, so it works even without the
   "All files access" permission.
-- **Page indicator.** A small `current / total` chip appears while scrolling.
 - Back gesture: viewer -> file browser -> parent folder -> close the app (when the system
   delivers it to the app).
 
 ### Changed
 
-- **Always pure-black (AMOLED) dark UI** in the file browser and around the pages, independent of
-  the system theme. Pages stay white.
+- **Always pure-black (AMOLED) dark UI** in the file browser, independent of the system theme.
+  The document stays white.
 - **Viewer without a fixed toolbar.** The Back / - / + buttons are gone: zoom is done by pinching,
   and a tap shows a floating bar (Back, file name, zoom %, tap the % to reset) that hides itself
   after a few seconds. The whole screen is now used by the document.
