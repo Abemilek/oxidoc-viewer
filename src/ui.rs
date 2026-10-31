@@ -77,7 +77,7 @@ fn setup_fonts(ctx: &egui::Context) -> bool {
 impl ViewerApp {
     pub fn new(cc: &eframe::CreationContext<'_>, handle: AppHandle) -> Self {
         let ctx = &cc.egui_ctx;
-        ctx.set_visuals(egui::Visuals::light());
+        ctx.set_visuals(egui::Visuals::dark());
         ctx.style_mut(|s| {
             s.spacing.button_padding = vec2(12.0, 10.0);
             s.spacing.item_spacing = vec2(8.0, 8.0);
