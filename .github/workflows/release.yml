@@ -73,20 +73,10 @@ jobs:
           CARGO_APK_RELEASE_KEYSTORE: /home/runner/release.keystore
           CARGO_APK_RELEASE_KEYSTORE_PASSWORD: oxidoc
 
-      - name: Merge into single universal APK
-        run: |
-          rm -rf /tmp/universal && mkdir -p /tmp/universal
-          unzip -o -q OxiDocViewer-arm64-release.apk -d /tmp/universal
-          unzip -o -q OxiDocViewer-armeabi-v7a-release.apk -d /tmp/universal
-          rm -rf /tmp/universal/META-INF
-          cd /tmp/universal && zip -r -X /tmp/OxiDocViewer-universal-release-unsigned.apk AndroidManifest.xml resources.arsc lib res
-          /home/runner/android-sdk/build-tools/34.0.0/zipalign -f -v 4 /tmp/OxiDocViewer-universal-release-unsigned.apk /tmp/OxiDocViewer-universal-release-aligned.apk
-          /home/runner/android-sdk/build-tools/34.0.0/apksigner sign --ks /home/runner/release.keystore --ks-pass pass:oxidoc --out /tmp/OxiDocViewer-universal-release.apk /tmp/OxiDocViewer-universal-release-aligned.apk
-          /home/runner/android-sdk/build-tools/34.0.0/apksigner verify /tmp/OxiDocViewer-universal-release.apk
-          cp /tmp/OxiDocViewer-universal-release.apk "${{ github.workspace }}/OxiDocViewer-universal-release.apk"
-
-      - name: Upload universal APK to GitHub Release
+      - name: Upload APKs to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: OxiDocViewer-universal-release.apk
+          files: |
+            OxiDocViewer-arm64-release.apk
+            OxiDocViewer-armeabi-v7a-release.apk
           fail_on_unmatched_files: true
