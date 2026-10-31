@@ -58,4 +58,47 @@ mod smoke {
             }
         }
     }
+
+    #[test]
+    fn offline_no_network_or_telemetry() {
+        // Offline-only rule: the app must not declare the INTERNET permission and must not
+        // use any network or telemetry/analytics API.
+        let manifest = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"),
+        )
+        .expect("failed to read Cargo.toml");
+        assert!(
+            !manifest.contains("android.permission.INTERNET"),
+            "android.permission.INTERNET must not be declared"
+        );
+
+        let src_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let entries = std::fs::read_dir(&src_dir).expect("failed to read src directory");
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            // Skip the test module itself, which references the forbidden API names.
+            if path.extension().map(|e| e == "rs").unwrap_or(false) && file_name != "lib.rs" {
+                let src = std::fs::read_to_string(&path).expect("failed to read source file");
+                for forbidden in [
+                    "TcpStream",
+                    "UdpSocket",
+                    "reqwest",
+                    "socket",
+                    "fetch",
+                    "telemetry",
+                    "analytics",
+                    "firebase",
+                    "crashlytics",
+                ] {
+                    assert!(
+                        !src.contains(forbidden),
+                        "forbidden API '{}' found in {}",
+                        forbidden,
+                        path.display()
+                    );
+                }
+            }
+        }
+    }
 }
