@@ -62,14 +62,19 @@ cargo install cargo-apk
 ```
 
 Configure the Android SDK and NDK. If you use the command-line tools, install the required
-packages first:
+packages first (adjust the paths to your SDK location, for example
+`C:\Users\<user>\Android\Sdk` on Windows or `~/Library/Android/sdk` on macOS):
 
 ```bash
 sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" "ndk;27.2.12479018"
 
 export ANDROID_HOME="$HOME/Android/Sdk"
-export ANDROID_NDK_ROOT="$ANDROID_HOME/ndk/27.2.12479018"
+export ANDROID_NDK_ROOT="$HOME/Android/Sdk/ndk/27.2.12479018"
 ```
+
+The build steps are the same on Windows, Linux and macOS (on Windows run the shell script from
+WSL or Git Bash and point `ANDROID_HOME` to your SDK path). Only the SDK paths change per
+operating system.
 
 Build and install a debug APK:
 
