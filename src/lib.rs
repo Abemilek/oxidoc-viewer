@@ -7,7 +7,6 @@ mod doc;
 mod docx;
 mod load;
 mod odt;
-mod pages;
 mod text;
 mod xml;
 
