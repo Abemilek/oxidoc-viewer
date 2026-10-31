@@ -102,10 +102,11 @@ export CARGO_APK_RELEASE_KEYSTORE_PASSWORD="oxidoc"
 
 This produces signed APKs in `target/release/apk/` (for example `OxiDocViewer.apk`).
 
-The release APKs for the current setup are kept in the `apks/` folder of the repository:
+The release APK for the current setup is kept in the `apks/` folder of the repository: a single
+universal APK that embeds both the `arm64-v8a` and the `armeabi-v7a` native libraries, so it runs on
+both new and old phones:
 
-- `apks/OxiDocViewer-arm64-release.apk` — for new phones (`arm64-v8a`).
-- `apks/OxiDocViewer-armeabi-v7a-release.apk` — for old phones (`armeabi-v7a`).
+- `apks/OxiDocViewer-universal-release.apk` — for new and old phones (arm64-v8a and armeabi-v7a).
 
 > `cargo-apk` is used for `NativeActivity` packaging. If it is unavailable in your environment,
 > `xbuild` can be used as an alternative (`x build --platform android --arch arm64`).
