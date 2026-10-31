@@ -38,7 +38,7 @@ of a small XML tokenizer and the `zip` crate, and the interface is rendered with
 - Tables, including nested tables.
 - Embedded images with automatic scaling.
 - File browser with quick-access folders.
-- Pinch to zoom; documents are shown as separate pages with a page indicator.
+- Pinch to zoom.
 - "Open with" support from file managers and other apps.
 - Touch-friendly scrolling with virtualized rendering for large documents.
 

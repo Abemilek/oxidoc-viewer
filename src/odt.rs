@@ -16,8 +16,6 @@ struct OStyle {
     size: Option<f32>,
     bg: Option<[u8; 3]>,
     align: Option<Alignment>,
-    break_before: Option<bool>,
-    break_after: Option<bool>,
 }
 
 impl OStyle {
@@ -45,12 +43,6 @@ impl OStyle {
         }
         if o.align.is_some() {
             self.align = o.align;
-        }
-        if o.break_before.is_some() {
-            self.break_before = o.break_before;
-        }
-        if o.break_after.is_some() {
-            self.break_after = o.break_after;
         }
     }
 }
@@ -135,12 +127,6 @@ impl Styles {
                     "paragraph-properties" => {
                         if let Some(n) = &cs {
                             let e = self.map.entry(n.clone()).or_default();
-                            if let Some(v) = attr(&attrs, "break-before") {
-                                e.break_before = Some(v == "page");
-                            }
-                            if let Some(v) = attr(&attrs, "break-after") {
-                                e.break_after = Some(v == "page");
-                            }
                             match attr(&attrs, "text-align") {
                                 Some("center") => e.align = Some(Alignment::Center),
                                 Some("end") | Some("right") => e.align = Some(Alignment::Right),
@@ -272,8 +258,6 @@ fn parse_para(cur: &mut Cur, cx: &mut Ctx, end: &str, attrs: &[(String, String)]
         default_pt: 12.0,
         ..Default::default()
     };
-    p.break_before = base.break_before.unwrap_or(false);
-    p.break_after = base.break_after.unwrap_or(false);
     let mut stack: Vec<OStyle> = vec![base];
     let mut buf = String::new();
     let (mut fw, mut fh) = (0.0f32, 0.0f32);
@@ -316,13 +300,6 @@ fn parse_para(cur: &mut Cur, cx: &mut Ctx, end: &str, attrs: &[(String, String)]
                         .min(200);
                     for _ in 0..n {
                         buf.push(' ');
-                    }
-                }
-                "soft-page-break" => {
-                    if p.inlines.is_empty() && buf.is_empty() {
-                        p.break_before = true;
-                    } else {
-                        p.break_after = true;
                     }
                 }
                 "tab" => buf.push_str("    "),
@@ -504,19 +481,10 @@ pub fn parse(bytes: &[u8]) -> Result<Document, String> {
     };
     let mut cur = Cur::new(&content);
     let mut blocks: Vec<Block> = Vec::new();
-    let mut pending_break = false;
     while let Some(t) = cur.next() {
         if let Tok::Start { name, attrs } = t {
             match name.as_str() {
-                "soft-page-break" => pending_break = true,
-                "p" | "h" => {
-                    let mut p = parse_para(&mut cur, &mut cx, &name, &attrs);
-                    if pending_break {
-                        p.break_before = true;
-                        pending_break = false;
-                    }
-                    blocks.push(Block::Para(p));
-                }
+                "p" | "h" => blocks.push(Block::Para(parse_para(&mut cur, &mut cx, &name, &attrs))),
                 "list" => parse_list(&mut cur, &mut cx, 0, None, &mut blocks, &attrs),
                 "table" => blocks.push(Block::Table(parse_table(&mut cur, &mut cx))),
                 _ => {}
@@ -534,6 +502,6 @@ pub fn parse(bytes: &[u8]) -> Result<Document, String> {
     Ok(Document {
         blocks,
         images,
-        ..Default::default()
+        title: String::new(),
     })
 }

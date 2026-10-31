@@ -1,7 +1,6 @@
 //! UI (egui): file browser and document viewer with virtualized scrolling.
 use crate::doc::*;
 use crate::load;
-use crate::pages;
 use crate::platform::{self, AppHandle};
 use eframe::egui::{
     self, text::LayoutJob, vec2, Align, Color32, FontFamily, FontId, Stroke, TextFormat,
@@ -24,10 +23,8 @@ struct Entry {
 struct Open {
     doc: Document,
     name: String,
-    /// Index of the first block of every page.
-    pages: Vec<usize>,
     textures: RefCell<HashMap<String, Option<TextureHandle>>>,
-    /// Measured height of every page (0.0 = not measured yet).
+    /// Measured height of every block (0.0 = not measured yet).
     heights: Vec<f32>,
     layout_key: (i32, i32),
 }
@@ -50,12 +47,9 @@ pub struct ViewerApp {
     show_bar: bool,
     bar_time: f64,
     bar_rect: Option<egui::Rect>,
-    /// Scroll tracking for the page indicator.
-    last_off: f32,
-    last_scroll: f64,
 }
 
-/// Pure-black ("AMOLED") dark theme for the app chrome. Document pages stay white.
+/// Pure-black ("AMOLED") dark theme for the app chrome. The document stays white.
 fn amoled_visuals() -> egui::Visuals {
     let g = Color32::from_gray;
     let mut v = egui::Visuals::dark();
@@ -139,8 +133,6 @@ impl ViewerApp {
             show_bar: false,
             bar_time: 0.0,
             bar_rect: None,
-            last_off: 0.0,
-            last_scroll: -10.0,
         };
         app.refresh();
         // Started from "Open with" in a file manager or another app?
@@ -192,8 +184,7 @@ impl ViewerApp {
     }
 
     fn show_document(&mut self, doc: Document) {
-        let starts = pages::split(&doc);
-        let n = starts.len();
+        let n = doc.blocks.len();
         let name = if doc.title.is_empty() {
             "document".to_string()
         } else {
@@ -202,15 +193,12 @@ impl ViewerApp {
         self.open = Some(Open {
             doc,
             name,
-            pages: starts,
             textures: RefCell::new(HashMap::new()),
             heights: vec![0.0; n],
             layout_key: (0, 0),
         });
         self.message = None;
         self.show_bar = false;
-        self.last_off = 0.0;
-        self.last_scroll = -10.0;
     }
 
     /// Back gesture / key: viewer -> browser, subfolder -> parent folder, root -> close the app.
@@ -364,18 +352,14 @@ impl ViewerApp {
 
         let zoom = self.zoom;
         let has_bold = self.has_bold;
-        let mut cur_page = 1usize;
-        let mut total_pages = 1usize;
-        let mut offset_y = 0.0f32;
 
         let frame = egui::Frame::default()
-            .fill(Color32::BLACK)
-            .inner_margin(6.0);
+            .fill(Color32::WHITE)
+            .inner_margin(10.0);
         egui::CentralPanel::default().frame(frame).show(ctx, |ui| {
             if let Some(o) = &mut self.open {
                 let Open {
                     doc,
-                    pages,
                     textures,
                     heights,
                     layout_key,
@@ -383,71 +367,51 @@ impl ViewerApp {
                 } = o;
                 let w = ui.available_width();
                 let key = (w as i32, (zoom * 100.0) as i32);
-                if *layout_key != key || heights.len() != pages.len() {
+                if *layout_key != key || heights.len() != doc.blocks.len() {
                     heights.clear();
-                    heights.resize(pages.len(), 0.0);
+                    heights.resize(doc.blocks.len(), 0.0);
                     *layout_key = key;
                 }
-                total_pages = pages.len();
                 let rc = RCtx {
                     images: &doc.images,
                     textures: &*textures,
                     scale: zoom * PT_SCALE,
                     has_bold,
                 };
-                let out = egui::ScrollArea::vertical()
+                egui::ScrollArea::vertical()
                     .id_salt(("document", name.as_str()))
                     .auto_shrink([false, false])
                     .show_viewport(ui, |ui, viewport| {
-                        ui.spacing_mut().item_spacing.y = 14.0;
+                        ui.spacing_mut().item_spacing.y = (6.0 * zoom).clamp(3.0, 18.0);
                         let sp = ui.spacing().item_spacing.y;
                         let avail = ui.available_width();
-                        let top = viewport.min.y - 1200.0;
-                        let bot = viewport.max.y + 1200.0;
-                        let probe = viewport.min.y + viewport.height() * 0.3;
-                        let n_pages = pages.len();
+                        let top = viewport.min.y - 800.0;
+                        let bot = viewport.max.y + 800.0;
                         let mut y = 0.0f32;
-                        let mut cur = 1usize;
-                        for pi in 0..n_pages {
-                            let start = pages[pi];
-                            let end = pages.get(pi + 1).copied().unwrap_or(doc.blocks.len());
-                            let blocks = &doc.blocks[start..end];
-                            let h = heights[pi];
+                        for (i, b) in doc.blocks.iter().enumerate() {
+                            let h = heights[i];
                             let known = h > 0.0;
                             let render = if known {
                                 y + h >= top && y <= bot
                             } else {
                                 y <= bot
                             };
-                            let hh = if render {
-                                let r =
-                                    ui.scope(|ui| render_page(ui, blocks, pi + 1, n_pages, &rc));
-                                let m = r.response.rect.height().max(0.5);
-                                heights[pi] = m;
-                                m
+                            if render {
+                                let r = ui.scope(|ui| render_block(ui, b, &rc));
+                                let hh = r.response.rect.height().max(0.5);
+                                heights[i] = hh;
+                                y += hh + sp;
                             } else {
-                                let e = if known { h } else { estimate_page(blocks, &rc) };
-                                ui.allocate_space(vec2(avail, e));
-                                e
-                            };
-                            if y <= probe {
-                                cur = pi + 1;
+                                let hh = if known { h } else { estimate(b, &rc) };
+                                ui.allocate_space(vec2(avail, hh));
+                                y += hh + sp;
                             }
-                            y += hh + sp;
                         }
                         // Keep the end of the document reachable above the navigation bar.
                         ui.add_space(64.0);
-                        cur
                     });
-                cur_page = out.inner;
-                offset_y = out.state.offset.y;
             }
         });
-
-        if (offset_y - self.last_off).abs() > 0.5 {
-            self.last_off = offset_y;
-            self.last_scroll = now;
-        }
 
         // Floating bar: back, document name and zoom (tap the percentage to reset it).
         if self.show_bar {
@@ -483,29 +447,6 @@ impl ViewerApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(4100));
         } else {
             self.bar_rect = None;
-        }
-
-        // Page indicator: appears while scrolling (or with the bar), then fades away.
-        let show_chip = self.show_bar || now - self.last_scroll < 1.4;
-        if show_chip && total_pages > 1 {
-            egui::Area::new(egui::Id::new("page_chip"))
-                .anchor(egui::Align2::CENTER_BOTTOM, vec2(0.0, -64.0))
-                .order(egui::Order::Foreground)
-                .interactable(false)
-                .show(ctx, |ui| {
-                    egui::Frame::default()
-                        .fill(Color32::from_rgba_unmultiplied(20, 20, 20, 230))
-                        .inner_margin(8.0)
-                        .show(ui, |ui| {
-                            ui.label(
-                                egui::RichText::new(format!("{cur_page} / {total_pages}"))
-                                    .color(Color32::WHITE),
-                            );
-                        });
-                });
-            if !self.show_bar {
-                ctx.request_repaint_after(std::time::Duration::from_millis(1500));
-            }
         }
 
         if reset_zoom {
@@ -582,32 +523,6 @@ fn estimate(b: &Block, rc: &RCtx) -> f32 {
         }
         Block::Table(t) => t.rows.len().max(1) as f32 * 50.0 * rc.scale,
     }
-}
-
-fn estimate_page(blocks: &[Block], rc: &RCtx) -> f32 {
-    blocks.iter().map(|b| estimate(b, rc)).sum::<f32>() + 60.0
-}
-
-/// One document page: a white sheet with its blocks and a small "n / total" caption below.
-fn render_page(ui: &mut egui::Ui, blocks: &[Block], n: usize, total: usize, rc: &RCtx) {
-    let zoom = rc.scale / PT_SCALE;
-    egui::Frame::default()
-        .fill(Color32::WHITE)
-        .inner_margin(16.0)
-        .show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.spacing_mut().item_spacing.y = (6.0 * zoom).clamp(3.0, 18.0);
-            for b in blocks {
-                render_block(ui, b, rc);
-            }
-        });
-    ui.with_layout(egui::Layout::top_down(Align::Center), |ui| {
-        ui.label(
-            egui::RichText::new(format!("{n} / {total}"))
-                .small()
-                .color(Color32::from_gray(140)),
-        );
-    });
 }
 
 fn render_block(ui: &mut egui::Ui, b: &Block, rc: &RCtx) {
